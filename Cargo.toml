@@ -1,0 +1,10 @@
+[package]
+name = "echoinput"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+iced = { version = "0.14", features = ["wgpu", "tokio", "canvas"] }
+tokio = { version = "1.38", features = ["sync", "rt", "macros", "rt-multi-thread"] }
+rdev = "0.5.3"
+futures-util = "0.3"
