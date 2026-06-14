@@ -45,13 +45,19 @@ graph TD
 
 ### B. Keystroke Grouping Algorithm
 - Normal keys (alphanumeric and symbols) are appended to the *current active bubble*.
-- Delimiters like `Space`, `Enter`, or `Tab` terminate the current active bubble, starting a new one.
-- **Inactivity Timeout**: If no keystroke occurs for `0.5` seconds, the current bubble is finalized. Subsequent typing starts a new bubble.
+- Delimiters like `Space`, `Enter`, or `Tab` are appended to the same event row and then finalize the active typing bubble.
+- **Inactivity Timeout**: If no keystroke occurs for `1` second, the current bubble is finalized. Subsequent typing starts a new bubble.
+- **History Expiration**: Finalized bubbles disappear after `5` seconds. Duplicate key-only bubbles refresh their expiration when their repeat count increases.
+- **Active Text Limit**: Active text is capped at 24 characters before it is split into a new history row. A delimiter may appear after that text as an extra bubble in the same row.
 - **Backspace Handling**:
   - If a Backspace key is pressed and the current bubble is active and has characters, the last character is deleted from the bubble.
   - If the current bubble is empty, or the previous bubble was already finalized (by timeout/delimiters), a backspace symbol `⌫` is appended.
 - **Modifiers & Shortcut commands**:
-  - Keys combined with modifiers (e.g., `Ctrl+C`, `Alt+Tab`, `Super+Shift+A`) are instantly displayed in a separate, dedicated bubble and immediately finalize the active typing bubble.
+  - Keys combined with command-style modifiers (Control, Alt/Option, or Super/Command) immediately finalize the active typing bubble and display as one shortcut row.
+  - Shortcut rows render each modifier/key as a separate bubble in the same row, e.g. `Super+Shift+S` appears as three adjacent bubbles.
+  - A subtle modifier row is always visible at the bottom and highlights held modifiers.
+- **Duplicate Compression**: Adjacent finalized key-only bubbles with the same content and kind are collapsed into one history entry with a small inline repeat count such as `×2` or `×3`. Text bubbles are not compressed.
+- **Expiration Order**: History expiration times are monotonic because new bubbles append to the back and only the latest duplicate bubble can be refreshed. Expiration pruning only removes from the front of the queue.
 
 ### C. Mouse Event Follower
 - Tracks global mouse pointer coordinates via `rdev`.
@@ -78,3 +84,24 @@ Since there is no system tray support in our iced setup:
 - **Linux**: Targets X11 desktop environments (requires Xlib development headers for building).
 - **Windows / macOS**: Cross-platform support is designed out of the box through `rdev`'s native platform event hooks.
 
+---
+
+## 6. Implementation Status
+
+Current stage: **first vertical slice / keystroke visualizer**.
+
+Completed:
+- Fullscreen transparent `iced` overlay window.
+- Always-on-top borderless window configuration.
+- Mouse passthrough enablement after window creation.
+- Global input hook subscription through `rdev`.
+- Keystroke grouping with active text editing, delimiter rows, shortcut rows, and held modifier indicators.
+- Adjacent duplicate bubble compression for repeated keys and shortcuts.
+- Five-second expiration for finalized bubbles.
+- Bottom-left bubble rendering using the dedicated icon font for keyboard glyphs and monospace text for typed text.
+
+In progress / next:
+- Manual verification of keystroke grouping behavior on the target OS.
+- Mouse follower rendering and click/scroll feedback.
+- Default hotkeys for visibility, clearing, and exit.
+- Configuration persistence is intentionally deferred.

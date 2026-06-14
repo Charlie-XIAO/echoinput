@@ -8,3 +8,10 @@ iced = { version = "0.14", features = ["wgpu", "tokio", "canvas"] }
 tokio = { version = "1.38", features = ["sync", "rt", "macros", "rt-multi-thread"] }
 rdev = "0.5.3"
 futures-util = "0.3"
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = "z"
+panic = "abort"
+strip = true
