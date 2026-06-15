@@ -59,7 +59,7 @@ pub fn overlay<'a, Message: 'a>(
     container(keystroke_list)
         .width(iced::Length::Fill)
         .height(iced::Length::Fill)
-        .padding([80, 40])
+        .padding(40)
         .align_x(alignment::Horizontal::Left)
         .align_y(alignment::Vertical::Bottom)
         .style(|_: &Theme| container::Style {

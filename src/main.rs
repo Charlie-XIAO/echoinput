@@ -32,18 +32,20 @@ pub fn main() -> iced::Result {
 }
 
 fn overlay_window_settings() -> window::Settings {
-    let mut settings = window::Settings {
+    let settings = window::Settings {
         transparent: true,
         decorations: false,
         level: Level::AlwaysOnTop,
-        fullscreen: true,
+        maximized: true,
         ..Default::default()
     };
 
     #[cfg(target_os = "windows")]
-    {
+    let settings = {
+        let mut settings = settings;
         settings.platform_specific.skip_taskbar = true;
-    }
+        settings
+    };
 
     settings
 }
