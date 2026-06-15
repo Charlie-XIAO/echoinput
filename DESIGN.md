@@ -38,10 +38,11 @@ graph TD
 
 ## 3. Detailed Component Designs
 
-### A. Window Strategy: Single Fullscreen Overlay
-- A single, borderless, transparent click-through window covering the entire screen is spawned.
-- Both the keystroke visualizer list (positioned at a fixed area on the screen, e.g., bottom-left) and the mouse event follower (drawn at the cursor's current logical `(x, y)` coordinates relative to the fullscreen canvas) are rendered within this single window.
-- This design eliminates window-moving latency/flicker and provides a unified rendering canvas.
+### A. Window Strategy: Compact Keystroke Overlay
+- The current keystroke visualizer uses a compact, borderless, transparent click-through window instead of a maximized/fullscreen overlay.
+- The window size is computed from runtime layout values and keystroke limits such as max history, max active text length, font sizes, text line-height, spacing, and padding.
+- The default placement is bottom-left with a screen margin. Once the monitor size is known, the window is clamped to the monitor's available area inside that margin. Placement is not configurable yet, but the runtime layout values are structured so this can be added later.
+- Future cursor-following mouse visualization may need a separate window or a different overlay strategy.
 
 ### B. Keystroke Grouping Algorithm
 - Normal keys (alphanumeric and symbols) are appended to the *current active bubble*.
@@ -91,7 +92,8 @@ Since there is no system tray support in our iced setup:
 Current stage: **first vertical slice / keystroke visualizer**.
 
 Completed:
-- Fullscreen transparent `iced` overlay window.
+- Compact transparent `iced` overlay window sized from layout and keystroke limits.
+- Monitor-aware overlay clamping so the compact window does not extend beyond the available screen area.
 - Always-on-top borderless window configuration.
 - Mouse passthrough enablement after window creation.
 - Global input hook subscription through `rdev`.
