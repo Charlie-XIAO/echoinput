@@ -51,8 +51,8 @@ graph TD
 - **History Expiration**: Finalized bubbles disappear after `5` seconds. Duplicate key-only bubbles refresh their expiration when their repeat count increases.
 - **Active Text Limit**: Active text is capped at 24 characters before it is split into a new history row. A delimiter may appear after that text as an extra bubble in the same row.
 - **Backspace Handling**:
-  - If a Backspace key is pressed and the current bubble is active and has characters, the last character is deleted from the bubble.
-  - If the current bubble is empty, or the previous bubble was already finalized (by timeout/delimiters), a backspace symbol `⌫` is appended.
+  - If a Backspace key is pressed while text is active, the active text bubble is finalized first.
+  - Backspace is displayed as a special key bubble instead of editing the active text bubble. Consecutive Backspaces are compressed with the repeat indicator.
 - **Modifiers & Shortcut commands**:
   - Keys combined with command-style modifiers (Control, Alt/Option, or Super/Command) immediately finalize the active typing bubble and display as one shortcut row.
   - Shortcut rows render each modifier/key as a separate bubble in the same row, e.g. `Super+Shift+S` appears as three adjacent bubbles.

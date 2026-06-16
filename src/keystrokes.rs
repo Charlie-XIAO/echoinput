@@ -104,16 +104,6 @@ impl KeystrokeState {
             return;
         }
 
-        if keystroke.key == KeyId::Backspace && !keystroke.modifiers.any() {
-            if !self.active.is_empty() {
-                self.active.pop();
-            } else {
-                self.push_history(vec![BubblePart::Key(keystroke)], BubbleKind::Special, now);
-            }
-
-            return;
-        }
-
         if keystroke.modifiers.has_command_modifier() {
             self.finalize_active(now);
             self.push_history(vec![BubblePart::Key(keystroke)], BubbleKind::Shortcut, now);
