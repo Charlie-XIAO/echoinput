@@ -20,19 +20,24 @@
 graph TD
     subgraph Host OS
         A[Global Input Hook: rdev] -- Event Stream --> B[Background Thread]
+        H[Global Hotkeys: global-hotkey] -- Subscription --> D
     end
     subgraph Iced Application
         B -- Channel --> C[Iced Subscription / Stream]
         C -- Messages --> D[Iced Update Loop]
         D -- State Update --> E[State Management]
-        E -- Render --> F[Single Fullscreen Overlay (Keystrokes + Mouse Follower)]
+        E -- Render --> F[Compact Overlay Window]
+        E -- Render --> G[Settings Window]
     end
 ```
 
 ### Key Dependencies
 1. **`iced` (v0.14)**: For rendering the overlay windows with transparency, borderless style, and mouse passthrough.
 2. **`rdev`**: For establishing a global input hook across mouse and keyboard events (Linux X11, macOS, Windows).
-3. **`tokio` / `futures`**: For async channel communication between the hook thread and the `iced` event loop.
+3. **`global-hotkey`**: For registering app-level global shortcuts outside the raw keystroke visualizer path.
+4. **`tokio` / `futures`**: For async channel communication between the hook thread and the `iced` event loop.
+5. **`dirs` / `serde_json`**: For locating the platform config directory and persisting simple JSON settings.
+6. **`anyhow`**: For concise startup/setup error propagation in small integration helpers.
 
 ---
 
@@ -40,8 +45,10 @@ graph TD
 
 ### A. Window Strategy: Compact Keystroke Overlay
 - The current keystroke visualizer uses a compact, borderless, transparent click-through window instead of a maximized/fullscreen overlay.
-- The window size is computed from runtime layout values and keystroke limits such as max history, max active text length, font sizes, text line-height, spacing, and padding.
+- The window size is computed from runtime layout values and keystroke limits such as history count, max active text length, font sizes, text line-height, spacing, and padding.
 - The default placement is bottom-left with a screen margin. Once the monitor size is known, the window is clamped to the monitor's available area inside that margin. Placement is not configurable yet, but the runtime layout values are structured so this can be added later.
+- The app uses iced's daemon API so it can own both the click-through overlay and a normal settings window.
+- If the overlay window is closed, the daemon exits instead of continuing invisibly.
 - Future cursor-following mouse visualization may need a separate window or a different overlay strategy.
 
 ### B. Keystroke Grouping Algorithm
@@ -49,6 +56,7 @@ graph TD
 - Delimiters like `Space`, `Enter`, or `Tab` are appended to the same event row and then finalize the active typing bubble.
 - **Inactivity Timeout**: If no keystroke occurs for `1` second, the current bubble is finalized. Subsequent typing starts a new bubble.
 - **History Expiration**: Finalized bubbles disappear after `5` seconds. Duplicate key-only bubbles refresh their expiration when their repeat count increases.
+- **History Limit**: The number of finalized history rows is configurable from `1` to `10`, defaults to `5`, and is persisted to JSON settings.
 - **Active Text Limit**: Active text is capped at 24 characters before it is split into a new history row. A delimiter may appear after that text as an extra bubble in the same row.
 - **Backspace Handling**:
   - If a Backspace key is pressed while text is active, the active text bubble is finalized first.
@@ -68,15 +76,18 @@ graph TD
   - Right click button area glows bright neon pink (e.g., `#ff007f`).
   - Scroll wheel area lights up showing a directional arrow (↑ or ↓) depending on the scroll direction, which fades out after 300ms.
 
+### D. Settings
+- `Super + Shift + ,` opens the settings window. Pressing it again focuses the existing settings window instead of opening a duplicate. This is handled only by `global-hotkey` through an iced subscription; the `rdev` input stream still visualizes the chord like any other keystroke.
+- Settings are persisted as JSON at `dirs::config_dir()/echoinput/settings.json`.
+- The first setting is history row count. Changes apply immediately, trim excess history rows, and resize/reposition the overlay.
+
 ---
 
 ## 4. Default Hotkeys
 
 Since there is no system tray support in our iced setup:
-- `Super + Shift + K`: Toggle Keystroke Visualizer visibility.
-- `Super + Shift + M`: Toggle Mouse Follower visibility.
-- `Super + Shift + C`: Clear current keystroke history.
-- `Super + Shift + Q`: Exit EchoInput.
+- `Ctrl + Shift + ,`: Open or focus settings.
+- `Ctrl + Shift + Q`: Exit EchoInput.
 
 ---
 
@@ -97,13 +108,13 @@ Completed:
 - Always-on-top borderless window configuration.
 - Mouse passthrough enablement after window creation.
 - Global input hook subscription through `rdev`.
-- Keystroke grouping with active text editing, delimiter rows, shortcut rows, and held modifier indicators.
+- Keystroke grouping with active typing rows, delimiter rows, shortcut rows, explicit Backspace display, and held modifier indicators.
 - Adjacent duplicate bubble compression for repeated keys and shortcuts.
 - Five-second expiration for finalized bubbles.
 - Bottom-left bubble rendering using the dedicated icon font for keyboard glyphs and monospace text for typed text.
+- Settings window with persisted history row count.
 
 In progress / next:
 - Manual verification of keystroke grouping behavior on the target OS.
 - Mouse follower rendering and click/scroll feedback.
 - Default hotkeys for visibility, clearing, and exit.
-- Configuration persistence is intentionally deferred.

@@ -1,10 +1,12 @@
-use iced::widget::{Column, Row, container, text};
-use iced::{Background, Border, Color, Element, Font, Size, Theme, alignment, border, padding};
+use iced::widget::{Column, Row, button, container, text};
+use iced::{
+    Background, Border, Color, Element, Font, Length, Size, Theme, alignment, border, padding,
+};
 
 use crate::fonts::{ICON_FONT, ICON_KBD_ALT, ICON_KBD_CONTROL, ICON_KBD_META, ICON_KBD_SHIFT};
 use crate::keystrokes::{
-    BubbleKind, BubblePart, KeyLabelPart, KeystrokeState, MAX_ACTIVE_TEXT_LEN, MAX_HISTORY,
-    Modifiers, key_label_parts,
+    BubbleKind, BubblePart, KeyLabelPart, KeystrokeState, MAX_ACTIVE_TEXT_LEN, Modifiers,
+    key_label_parts,
 };
 
 const MONOSPACE_CHAR_WIDTH_RATIO: f32 = 0.62;
@@ -48,8 +50,8 @@ impl Default for OverlayLayout {
 }
 
 impl OverlayLayout {
-    pub fn window_size(self) -> Size {
-        Size::new(self.event_max_width(), self.stack_height())
+    pub fn window_size(self, history_limit: usize) -> Size {
+        Size::new(self.event_max_width(), self.stack_height(history_limit))
     }
 
     pub fn event_max_width(self) -> f32 {
@@ -61,21 +63,72 @@ impl OverlayLayout {
         (text_width + repeat_count_width + padding + self.width_slack).ceil()
     }
 
-    fn stack_height(self) -> f32 {
+    fn stack_height(self, history_limit: usize) -> f32 {
         let event_row_height = self.row_height(self.event_font_size, self.event_padding_vertical);
         let modifier_row_height = self
             .row_height(self.modifier_font_size, self.modifier_padding_vertical)
             + self.modifier_top_padding;
 
-        let row_count = MAX_HISTORY as f32 + 2.0;
+        let row_count = history_limit as f32 + 2.0;
         let spacing = self.column_spacing * (row_count - 1.0);
 
-        (event_row_height * (MAX_HISTORY as f32 + 1.0) + modifier_row_height + spacing).ceil()
+        (event_row_height * (history_limit as f32 + 1.0) + modifier_row_height + spacing).ceil()
     }
 
     fn row_height(self, font_size: f32, vertical_padding: f32) -> f32 {
         font_size * self.text_line_height + 2.0 * vertical_padding
     }
+}
+
+pub fn settings_window<'a, Message: Clone + 'a>(
+    history_limit: usize,
+    decrease: Option<Message>,
+    increase: Option<Message>,
+) -> Element<'a, Message> {
+    let controls = Row::new()
+        .spacing(10)
+        .align_y(alignment::Vertical::Center)
+        .push(
+            button(text("-").size(18))
+                .width(Length::Fixed(36.0))
+                .on_press_maybe(decrease),
+        )
+        .push(
+            container(text(history_limit.to_string()).size(18))
+                .width(Length::Fixed(32.0))
+                .align_x(alignment::Horizontal::Center),
+        )
+        .push(
+            button(text("+").size(18))
+                .width(Length::Fixed(36.0))
+                .on_press_maybe(increase),
+        );
+
+    let content = Column::new()
+        .spacing(16)
+        .push(text("Settings").size(22))
+        .push(
+            Row::new()
+                .spacing(20)
+                .align_y(alignment::Vertical::Center)
+                .push(container(text("History rows").size(16)).width(Length::Fill))
+                .push(controls),
+        );
+
+    container(content)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding(24)
+        .style(|_: &Theme| container::Style {
+            text_color: Some(Color::WHITE),
+            background: Some(Background::Color(Color::from_rgb(0.08, 0.09, 0.1))),
+            ..Default::default()
+        })
+        .into()
+}
+
+pub fn empty_window<'a, Message: 'a>() -> Element<'a, Message> {
+    container(text("")).into()
 }
 
 pub fn overlay<'a, Message: 'a>(

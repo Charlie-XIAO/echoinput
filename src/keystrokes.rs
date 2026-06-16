@@ -10,7 +10,7 @@ use crate::fonts::{
 
 pub const INACTIVITY_TIMEOUT: Duration = Duration::from_millis(1000);
 pub const BUBBLE_TTL: Duration = Duration::from_millis(5000);
-pub const MAX_HISTORY: usize = 5;
+pub const DEFAULT_HISTORY_LIMIT: usize = 5;
 pub const MAX_ACTIVE_TEXT_LEN: usize = 24;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -76,14 +76,35 @@ impl Modifiers {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct KeystrokeState {
     pub active: String,
     pub history: VecDeque<KeyBubble>,
+    history_limit: usize,
     last_key_at: Option<Instant>,
 }
 
+impl Default for KeystrokeState {
+    fn default() -> Self {
+        Self::new(DEFAULT_HISTORY_LIMIT)
+    }
+}
+
 impl KeystrokeState {
+    pub fn new(history_limit: usize) -> Self {
+        Self {
+            active: String::new(),
+            history: VecDeque::new(),
+            history_limit,
+            last_key_at: None,
+        }
+    }
+
+    pub fn set_history_limit(&mut self, history_limit: usize) {
+        self.history_limit = history_limit;
+        self.trim_history();
+    }
+
     pub fn handle_keystroke(&mut self, keystroke: Keystroke, now: Instant) {
         self.finalize_if_inactive(now);
         self.last_key_at = Some(now);
@@ -193,7 +214,11 @@ impl KeystrokeState {
             last_updated_at: now,
         });
 
-        while self.history.len() > MAX_HISTORY {
+        self.trim_history();
+    }
+
+    fn trim_history(&mut self) {
+        while self.history.len() > self.history_limit {
             self.history.pop_front();
         }
     }
