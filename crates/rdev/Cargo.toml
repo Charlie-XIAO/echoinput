@@ -1,0 +1,31 @@
+[package]
+name = "rdev"
+version = "0.6.0"
+authors = ["Nicolas Patry <patry.nicolas@protonmail.com>"]
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+lazy_static = "1.4"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.10"
+core-foundation-sys = "0.8"
+dispatch = "0.2"
+objc2-foundation = "0.3.1"
+objc2-core-graphics = "0.3.1"
+objc2-core-foundation = "0.3.1"
+objc2 = "0.6.1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+x11 = { version = "2.18", features = ["xlib", "xrecord", "xinput"] }
+input = { version = "0.9" }
+xkbcommon = { version = "0.8" }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+winapi = { version = "0.3", features = [
+  "winuser",
+  "errhandlingapi",
+  "processthreadsapi",
+] }

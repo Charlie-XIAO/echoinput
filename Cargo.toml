@@ -1,12 +1,20 @@
+[workspace]
+members = [".", "crates/rdev"]
+
 [package]
 name = "echoinput"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-iced = { version = "0.14", default-features = false, features = ["tiny-skia", "crisp", "tokio", "x11"] }
+iced = { version = "0.14", default-features = false, features = [
+  "tiny-skia",
+  "crisp",
+  "tokio",
+  "x11",
+] }
 tokio = { version = "1.38", features = ["sync"] }
-rdev = "0.5.3"
+rdev = { path = "crates/rdev" }
 futures-util = "0.3"
 dirs = "6"
 serde = { version = "1", features = ["derive"] }
