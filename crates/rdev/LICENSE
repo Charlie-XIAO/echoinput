@@ -1,3 +1,10 @@
+# THIRD-PARTY LICENSE NOTICE
+
+This crate is vendored and modified from the original rdev crate
+(https://github.com/Narsil/rdev) and is used under the terms of the MIT License.
+
+## RDEV LICENSE
+
 MIT License
 
 Copyright (c) 2020 Nicolas Patry

@@ -1,83 +1,91 @@
+use std::fs::File;
+use std::io::{BufWriter, Write};
 use std::path::PathBuf;
-use std::{fs, io};
 
-use serde::{Deserialize, Serialize};
+use anyhow::{Context, Result};
+use serde::{Deserialize, Deserializer};
 
-use crate::keystrokes::DEFAULT_HISTORY_LIMIT;
+const MIN_HISTORY_LIMIT: usize = 1;
+const MAX_HISTORY_LIMIT: usize = 10;
+const DEFAULT_HISTORY_LIMIT: usize = 5;
 
-pub const MIN_HISTORY_LIMIT: usize = 1;
-pub const MAX_HISTORY_LIMIT: usize = 10;
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct AppSettings {
-    #[serde(default = "default_history_limit")]
+#[derive(Debug, Deserialize)]
+pub struct Settings {
+    #[serde(
+        default = "default_history_limit",
+        deserialize_with = "deserialize_history_limit"
+    )]
     pub history_limit: usize,
 }
 
-impl Default for AppSettings {
+impl Default for Settings {
     fn default() -> Self {
         Self {
-            history_limit: DEFAULT_HISTORY_LIMIT,
+            history_limit: default_history_limit(),
         }
     }
 }
 
-impl AppSettings {
-    pub fn normalized(mut self) -> Self {
-        self.history_limit = self
-            .history_limit
-            .clamp(MIN_HISTORY_LIMIT, MAX_HISTORY_LIMIT);
-        self
-    }
+const fn default_history_limit() -> usize {
+    DEFAULT_HISTORY_LIMIT
 }
 
-pub fn load() -> AppSettings {
-    let Some(path) = config_path() else {
-        eprintln!("Could not find a config directory; using default settings.");
-        return AppSettings::default();
-    };
-
-    match fs::read_to_string(&path) {
-        Ok(content) => match serde_json::from_str::<AppSettings>(&content) {
-            Ok(settings) => settings.normalized(),
-            Err(err) => {
-                eprintln!("Could not parse settings at {}: {err}", path.display());
-                AppSettings::default()
-            },
-        },
-        Err(err) if err.kind() == io::ErrorKind::NotFound => AppSettings::default(),
-        Err(err) => {
-            eprintln!("Could not read settings at {}: {err}", path.display());
-            AppSettings::default()
-        },
-    }
+fn deserialize_history_limit<'de, D>(deserializer: D) -> Result<usize, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = usize::deserialize(deserializer)?;
+    Ok(value.clamp(MIN_HISTORY_LIMIT, MAX_HISTORY_LIMIT))
 }
 
-pub fn save(settings: AppSettings) {
-    if let Err(err) = try_save(settings.normalized()) {
-        eprintln!("Could not save settings: {err}");
-    }
+/// Load settings from the settings file.
+pub fn load() -> Result<Settings> {
+    let path = ensure_settings_file()?;
+
+    let content = std::fs::read_to_string(&path)
+        .with_context(|| format!("failed to read settings from {}", path.display()))?;
+    let settings = toml::from_str::<Settings>(&content)
+        .with_context(|| format!("failed to parse settings from {}", path.display()))?;
+
+    Ok(settings)
 }
 
-fn try_save(settings: AppSettings) -> Result<(), Box<dyn std::error::Error>> {
-    let path = config_path().ok_or_else(|| {
-        io::Error::new(io::ErrorKind::NotFound, "could not find a config directory")
-    })?;
-
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    let content = serde_json::to_string_pretty(&settings)?;
-    fs::write(path, content)?;
-
+/// Open the settings file with the default application.
+pub fn open() -> Result<()> {
+    let path = ensure_settings_file()?;
+    open::that(&path).with_context(|| format!("failed to open {}", path.display()))?;
     Ok(())
 }
 
-fn config_path() -> Option<PathBuf> {
-    Some(dirs::config_dir()?.join("echoinput").join("settings.json"))
+/// Ensure that the settings file exists and return its path.
+///
+/// If the file does not yet exist, it will be created with default content.
+fn ensure_settings_file() -> Result<PathBuf> {
+    let dir = dirs::config_dir()
+        .context("failed to find settings directory")?
+        .join("echoinput");
+    std::fs::create_dir_all(&dir)
+        .with_context(|| format!("failed to create settings directory: {}", dir.display()))?;
+
+    let path = dir.join("settings.toml");
+    if path.exists() {
+        return Ok(path);
+    }
+
+    let writer = File::create(&path)
+        .with_context(|| format!("failed to create settings file {}", path.display()))?;
+    let mut writer = BufWriter::new(writer);
+    write_default_settings(&mut writer)
+        .with_context(|| format!("failed to write initial settings to {}", path.display()))?;
+
+    Ok(path)
 }
 
-fn default_history_limit() -> usize {
-    DEFAULT_HISTORY_LIMIT
+/// Write the default settings content.
+#[rustfmt::skip]
+fn write_default_settings<W: Write>(w: &mut W) -> Result<()> {
+    writeln!(w, "# Number of finalized keystroke rows to keep.")?;
+    writeln!(w, "# Valid range: [{MIN_HISTORY_LIMIT}, {MAX_HISTORY_LIMIT}].")?;
+    writeln!(w, "history_limit = {DEFAULT_HISTORY_LIMIT}")?;
+    Ok(())
 }

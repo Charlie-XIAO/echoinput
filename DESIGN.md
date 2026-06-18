@@ -27,7 +27,7 @@ graph TD
         C -- Messages --> D[Iced Update Loop]
         D -- State Update --> E[State Management]
         E -- Render --> F[Compact Overlay Window]
-        E -- Render --> G[Settings Window]
+        D -- Open/Reload --> G[TOML Settings File]
     end
 ```
 
@@ -36,8 +36,8 @@ graph TD
 2. **`rdev`**: For establishing a global input hook across mouse and keyboard events (Linux X11, macOS, Windows).
 3. **`global-hotkey`**: For registering app-level global shortcuts outside the raw keystroke visualizer path.
 4. **`tokio` / `futures`**: For async channel communication between the hook thread and the `iced` event loop.
-5. **`dirs` / `serde_json`**: For locating the platform config directory and persisting simple JSON settings.
-6. **`anyhow`**: For concise startup/setup error propagation in small integration helpers.
+5. **`dirs` / `toml` / `open`**: For locating, parsing, creating, and opening the user-editable settings file.
+6. **`anyhow` / `log` / `humantime`**: For concise startup/setup error propagation and lightweight file diagnostics.
 
 ---
 
@@ -47,7 +47,7 @@ graph TD
 - The current keystroke visualizer uses a compact, borderless, transparent click-through window instead of a maximized/fullscreen overlay.
 - The window size is computed from runtime layout values and keystroke limits such as history count, max active text length, font sizes, text line-height, spacing, and padding.
 - The default placement is bottom-left with a screen margin. Once the monitor size is known, the window is clamped to the monitor's available area inside that margin. Placement is not configurable yet, but the runtime layout values are structured so this can be added later.
-- The app uses iced's daemon API so it can own both the click-through overlay and a normal settings window.
+- The app uses iced's daemon API so it can own the click-through overlay while still running global subscriptions.
 - If the overlay window is closed, the daemon exits instead of continuing invisibly.
 - Future cursor-following mouse visualization may need a separate window or a different overlay strategy.
 
@@ -56,7 +56,7 @@ graph TD
 - Delimiters like `Space`, `Enter`, or `Tab` are appended to the same event row and then finalize the active typing bubble.
 - **Inactivity Timeout**: If no keystroke occurs for `1` second, the current bubble is finalized. Subsequent typing starts a new bubble.
 - **History Expiration**: Finalized bubbles disappear after `5` seconds. Duplicate key-only bubbles refresh their expiration when their repeat count increases.
-- **History Limit**: The number of finalized history rows is configurable from `1` to `10`, defaults to `5`, and is persisted to JSON settings.
+- **History Limit**: The number of finalized history rows is configurable from `1` to `10`, defaults to `5`, and is persisted to TOML settings.
 - **Active Text Limit**: Active text is capped at 24 characters before it is split into a new history row. A delimiter may appear after that text as an extra bubble in the same row.
 - **Backspace Handling**:
   - If a Backspace key is pressed while text is active, the active text bubble is finalized first.
@@ -77,16 +77,26 @@ graph TD
   - Scroll wheel area lights up showing a directional arrow (↑ or ↓) depending on the scroll direction, which fades out after 300ms.
 
 ### D. Settings
-- `Super + Shift + ,` opens the settings window. Pressing it again focuses the existing settings window instead of opening a duplicate. This is handled only by `global-hotkey` through an iced subscription; the `rdev` input stream still visualizes the chord like any other keystroke.
-- Settings are persisted as JSON at `dirs::config_dir()/echoinput/settings.json`.
-- The first setting is history row count. Changes apply immediately, trim excess history rows, and resize/reposition the overlay.
+- `Ctrl + Shift + ,` opens the TOML settings file in the OS default editor. This is handled only by `global-hotkey`; the `rdev` input stream still visualizes the chord like any other keystroke.
+- Settings are persisted as TOML at `dirs::config_dir()/echoinput/settings.toml`. If the file is missing, EchoInput writes an initial commented config with defaults.
+- Settings currently include `history_limit`.
+- `Ctrl + Shift + R` reloads settings from disk. Successful reloads apply immediately, trim excess history rows, and resize/reposition the overlay. Invalid settings are logged and the current runtime settings remain active.
+
+### E. Diagnostics
+- Diagnostics are written to `dirs::data_local_dir()/echoinput/echoinput.log`.
+- The current log rotates to `echoinput.old.log` when it exceeds the size cap.
+- Logging is fixed to `info`, `warn`, and `error` records. `debug` and `trace` records are compiled out via `log/max_level_info`.
+- Recoverable app errors set a lightweight error status. The overlay renders a fixed-size alert icon next to the modifier row while that status is active.
+- A successful settings reload clears the current error status.
 
 ---
 
 ## 4. Default Hotkeys
 
 Since there is no system tray support in our iced setup:
-- `Ctrl + Shift + ,`: Open or focus settings.
+- `Ctrl + Shift + ,`: Open settings TOML file.
+- `Ctrl + Shift + R`: Reload settings TOML file.
+- `Ctrl + Shift + L`: Open diagnostics log file.
 - `Ctrl + Shift + Q`: Exit EchoInput.
 
 ---
@@ -112,7 +122,8 @@ Completed:
 - Adjacent duplicate bubble compression for repeated keys and shortcuts.
 - Five-second expiration for finalized bubbles.
 - Bottom-left bubble rendering using the dedicated icon font for keyboard glyphs and monospace text for typed text.
-- Settings window with persisted history row count.
+- TOML settings file with persisted history row count and manual reload/open hotkeys.
+- Lightweight file logging with a fixed-size overlay alert indicator.
 
 In progress / next:
 - Manual verification of keystroke grouping behavior on the target OS.

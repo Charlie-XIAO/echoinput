@@ -169,6 +169,22 @@ pub enum Key {
     Unknown(u32),
 }
 
+impl Key {
+    pub fn is_modifier(&self) -> bool {
+        matches!(
+            self,
+            Self::ControlLeft
+                | Self::ControlRight
+                | Self::Alt
+                | Self::AltGr
+                | Self::ShiftLeft
+                | Self::ShiftRight
+                | Self::MetaLeft
+                | Self::MetaRight
+        )
+    }
+}
+
 /// Standard mouse buttons
 /// Some mice have more than 3 buttons. These are not defined, and different
 /// OSs will give different `Button::Unknown` values.
@@ -212,6 +228,15 @@ pub struct Event {
     pub time: SystemTime,
     pub name: Option<String>,
     pub event_type: EventType,
+}
+
+impl Event {
+    pub fn into_printable_name(self) -> Option<String> {
+        let name = self.name?;
+        name.chars()
+            .all(|character| !character.is_control() && !character.is_whitespace())
+            .then_some(name)
+    }
 }
 
 pub trait KeyboardState {

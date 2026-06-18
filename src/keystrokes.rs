@@ -1,28 +1,37 @@
+use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
-use crate::fonts::{
-    ICON_KBD_ALT, ICON_KBD_BACKSPACE, ICON_KBD_CONTROL, ICON_KBD_DELETE, ICON_KBD_DOWN,
-    ICON_KBD_END, ICON_KBD_ESCAPE, ICON_KBD_HOME, ICON_KBD_LEFT, ICON_KBD_META, ICON_KBD_PAGEDOWN,
-    ICON_KBD_PAGEUP, ICON_KBD_RETURN, ICON_KBD_RIGHT, ICON_KBD_SHIFT, ICON_KBD_SPACE, ICON_KBD_TAB,
-    ICON_KBD_UP,
-};
+use rdev::Key;
 
-pub const INACTIVITY_TIMEOUT: Duration = Duration::from_millis(1000);
-pub const BUBBLE_TTL: Duration = Duration::from_millis(5000);
-pub const DEFAULT_HISTORY_LIMIT: usize = 5;
+use crate::icons::Icon;
+
+const INACTIVITY_TIMEOUT: Duration = Duration::from_millis(1000);
+const BUBBLE_TTL: Duration = Duration::from_millis(5000);
 pub const MAX_ACTIVE_TEXT_LEN: usize = 24;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Keystroke {
-    pub key: KeyId,
-    pub modifiers: Modifiers,
-    pub text: Option<String>,
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Modifiers {
+    pub control: bool,
+    pub alt: bool,
+    pub shift: bool,
+    pub meta: bool,
+}
+
+impl Modifiers {
+    pub fn any(&self) -> bool {
+        self.control || self.alt || self.shift || self.meta
+    }
+
+    /// Returns true if any shortcut-like modifier is active.
+    pub fn enables_shortcut(&self) -> bool {
+        self.control || self.alt || self.meta
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum KeyId {
-    Character(char),
+pub enum DisplayKey {
+    Char(char),
     Backspace,
     Delete,
     Escape,
@@ -48,31 +57,205 @@ pub enum KeyId {
     Unknown,
 }
 
-impl KeyId {
-    fn is_delimiter(self) -> bool {
+impl DisplayKey {
+    fn is_delimiter(&self) -> bool {
         matches!(self, Self::Space | Self::Enter | Self::Tab)
     }
 
-    fn is_special(self) -> bool {
-        !matches!(self, Self::Character(_))
+    fn is_special(&self) -> bool {
+        !matches!(self, Self::Char(_))
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct Modifiers {
-    pub control: bool,
-    pub alt: bool,
-    pub shift: bool,
-    pub meta: bool,
+impl From<Key> for DisplayKey {
+    fn from(key: Key) -> Self {
+        match key {
+            Key::Backspace => Self::Backspace,
+            Key::CapsLock => Self::CapsLock,
+            Key::Delete => Self::Delete,
+            Key::DownArrow => Self::ArrowDown,
+            Key::End => Self::End,
+            Key::Escape => Self::Escape,
+            Key::F1 => Self::F(1),
+            Key::F2 => Self::F(2),
+            Key::F3 => Self::F(3),
+            Key::F4 => Self::F(4),
+            Key::F5 => Self::F(5),
+            Key::F6 => Self::F(6),
+            Key::F7 => Self::F(7),
+            Key::F8 => Self::F(8),
+            Key::F9 => Self::F(9),
+            Key::F10 => Self::F(10),
+            Key::F11 => Self::F(11),
+            Key::F12 => Self::F(12),
+            Key::F13 => Self::F(13),
+            Key::F14 => Self::F(14),
+            Key::F15 => Self::F(15),
+            Key::F16 => Self::F(16),
+            Key::F17 => Self::F(17),
+            Key::F18 => Self::F(18),
+            Key::F19 => Self::F(19),
+            Key::F20 => Self::F(20),
+            Key::F21 => Self::F(21),
+            Key::F22 => Self::F(22),
+            Key::F23 => Self::F(23),
+            Key::F24 => Self::F(24),
+            Key::Home => Self::Home,
+            Key::LeftArrow => Self::ArrowLeft,
+            Key::PageDown => Self::PageDown,
+            Key::PageUp => Self::PageUp,
+            Key::Return | Key::KpReturn => Self::Enter,
+            Key::RightArrow => Self::ArrowRight,
+            Key::Space => Self::Space,
+            Key::Tab => Self::Tab,
+            Key::UpArrow => Self::ArrowUp,
+            Key::PrintScreen => Self::PrintScreen,
+            Key::ScrollLock => Self::ScrollLock,
+            Key::Pause => Self::Pause,
+            Key::NumLock => Self::NumLock,
+            Key::BackQuote => Self::Char('`'),
+            Key::Num1 | Key::Kp1 => Self::Char('1'),
+            Key::Num2 | Key::Kp2 => Self::Char('2'),
+            Key::Num3 | Key::Kp3 => Self::Char('3'),
+            Key::Num4 | Key::Kp4 => Self::Char('4'),
+            Key::Num5 | Key::Kp5 => Self::Char('5'),
+            Key::Num6 | Key::Kp6 => Self::Char('6'),
+            Key::Num7 | Key::Kp7 => Self::Char('7'),
+            Key::Num8 | Key::Kp8 => Self::Char('8'),
+            Key::Num9 | Key::Kp9 => Self::Char('9'),
+            Key::Num0 | Key::Kp0 => Self::Char('0'),
+            Key::Minus | Key::KpMinus => Self::Char('-'),
+            Key::Equal => Self::Char('='),
+            Key::KeyQ => Self::Char('Q'),
+            Key::KeyW => Self::Char('W'),
+            Key::KeyE => Self::Char('E'),
+            Key::KeyR => Self::Char('R'),
+            Key::KeyT => Self::Char('T'),
+            Key::KeyY => Self::Char('Y'),
+            Key::KeyU => Self::Char('U'),
+            Key::KeyI => Self::Char('I'),
+            Key::KeyO => Self::Char('O'),
+            Key::KeyP => Self::Char('P'),
+            Key::LeftBracket => Self::Char('['),
+            Key::RightBracket => Self::Char(']'),
+            Key::KeyA => Self::Char('A'),
+            Key::KeyS => Self::Char('S'),
+            Key::KeyD => Self::Char('D'),
+            Key::KeyF => Self::Char('F'),
+            Key::KeyG => Self::Char('G'),
+            Key::KeyH => Self::Char('H'),
+            Key::KeyJ => Self::Char('J'),
+            Key::KeyK => Self::Char('K'),
+            Key::KeyL => Self::Char('L'),
+            Key::SemiColon => Self::Char(';'),
+            Key::Quote => Self::Char('\''),
+            Key::BackSlash | Key::IntlBackslash => Self::Char('\\'),
+            Key::KeyZ => Self::Char('Z'),
+            Key::KeyX => Self::Char('X'),
+            Key::KeyC => Self::Char('C'),
+            Key::KeyV => Self::Char('V'),
+            Key::KeyB => Self::Char('B'),
+            Key::KeyN => Self::Char('N'),
+            Key::KeyM => Self::Char('M'),
+            Key::Comma => Self::Char(','),
+            Key::Dot | Key::KpDelete => Self::Char('.'),
+            Key::Slash | Key::KpDivide => Self::Char('/'),
+            Key::Insert => Self::Insert,
+            Key::KpPlus => Self::Char('+'),
+            Key::KpMultiply => Self::Char('*'),
+            Key::Function => Self::Function,
+            // Key::VolumeUp => Self::VolumeUp,
+            // Key::VolumeDown => Self::VolumeDown,
+            // Key::VolumeMute => Self::VolumeMute,
+            // Key::BrightnessUp => Self::BrightnessUp,
+            // Key::BrightnessDown => Self::BrightnessDown,
+            // Key::PreviousTrack => Self::PreviousTrack,
+            // Key::PlayPause => Self::PlayPause,
+            // Key::PlayCd => Self::PlayCd,
+            // Key::NextTrack => Self::NextTrack,
+            Key::Alt
+            | Key::AltGr
+            | Key::ControlLeft
+            | Key::ControlRight
+            | Key::MetaLeft
+            | Key::MetaRight
+            | Key::ShiftLeft
+            | Key::ShiftRight
+            | Key::Unknown(_) => Self::Unknown,
+            _ => Self::Unknown,
+        }
+    }
 }
 
-impl Modifiers {
-    pub fn any(self) -> bool {
-        self.control || self.alt || self.shift || self.meta
-    }
+/// A visual label rendered for a keystroke.
+#[derive(Debug)]
+pub enum KeyLabel<'a> {
+    Text(Cow<'a, str>),
+    Char(char),
+    Icon(Icon),
+}
 
-    pub fn has_command_modifier(self) -> bool {
-        self.control || self.alt || self.meta
+impl From<DisplayKey> for KeyLabel<'static> {
+    fn from(key: DisplayKey) -> Self {
+        match key {
+            DisplayKey::Char(ch) => Self::Char(ch),
+            DisplayKey::Backspace => Self::Icon(Icon::KbdBackspace),
+            DisplayKey::Delete => Self::Icon(Icon::KbdDelete),
+            DisplayKey::Escape => Self::Icon(Icon::KbdEscape),
+            DisplayKey::Enter => Self::Icon(Icon::KbdEnter),
+            DisplayKey::Tab => Self::Icon(Icon::KbdTab),
+            DisplayKey::Space => Self::Icon(Icon::KbdSpace),
+            DisplayKey::ArrowUp => Self::Icon(Icon::KbdArrowUp),
+            DisplayKey::ArrowDown => Self::Icon(Icon::KbdArrowDown),
+            DisplayKey::ArrowLeft => Self::Icon(Icon::KbdArrowLeft),
+            DisplayKey::ArrowRight => Self::Icon(Icon::KbdArrowRight),
+            DisplayKey::Home => Self::Icon(Icon::KbdHome),
+            DisplayKey::End => Self::Icon(Icon::KbdEnd),
+            DisplayKey::PageUp => Self::Icon(Icon::KbdPageUp),
+            DisplayKey::PageDown => Self::Icon(Icon::KbdPageDown),
+            DisplayKey::Insert => Self::Text(Cow::Borrowed("Ins")),
+            DisplayKey::CapsLock => Self::Text(Cow::Borrowed("Caps")),
+            DisplayKey::PrintScreen => Self::Text(Cow::Borrowed("PrtSc")),
+            DisplayKey::ScrollLock => Self::Text(Cow::Borrowed("ScrLk")),
+            DisplayKey::Pause => Self::Text(Cow::Borrowed("Pause")),
+            DisplayKey::NumLock => Self::Text(Cow::Borrowed("NumLk")),
+            DisplayKey::Function => Self::Text(Cow::Borrowed("Fn")),
+            DisplayKey::F(x) => Self::Text(Cow::Owned(format!("F{x}"))),
+            DisplayKey::Unknown => Self::Text(Cow::Borrowed("Unknown")),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Keystroke {
+    pub key: DisplayKey,
+    pub modifiers: Modifiers,
+    /// Display text for normal typing.
+    ///
+    /// This is layout-resolved and could be `None` for non-printable keys, in
+    /// which case [`Keystroke::key`] should be used as the fallback.
+    pub text: Option<String>,
+}
+
+impl Keystroke {
+    pub fn labels(&self) -> Vec<KeyLabel<'static>> {
+        let mut parts = Vec::new();
+
+        if self.modifiers.control {
+            parts.push(KeyLabel::Icon(Icon::KbdControl));
+        }
+        if self.modifiers.alt {
+            parts.push(KeyLabel::Icon(Icon::KbdAlt));
+        }
+        if self.modifiers.shift {
+            parts.push(KeyLabel::Icon(Icon::KbdShift));
+        }
+        if self.modifiers.meta {
+            parts.push(KeyLabel::Icon(Icon::KbdMeta));
+        }
+
+        parts.push(self.key.into());
+        parts
     }
 }
 
@@ -82,12 +265,6 @@ pub struct KeystrokeState {
     pub history: VecDeque<KeyBubble>,
     history_limit: usize,
     last_key_at: Option<Instant>,
-}
-
-impl Default for KeystrokeState {
-    fn default() -> Self {
-        Self::new(DEFAULT_HISTORY_LIMIT)
-    }
 }
 
 impl KeystrokeState {
@@ -111,33 +288,46 @@ impl KeystrokeState {
 
         if keystroke.key.is_delimiter() {
             if keystroke.modifiers.any() {
+                // Modified delimiters are explicit key events
                 self.finalize_active(now);
-                let kind = if keystroke.modifiers.has_command_modifier() {
+                let kind = if keystroke.modifiers.enables_shortcut() {
                     BubbleKind::Shortcut
                 } else {
                     BubbleKind::Special
                 };
                 self.push_history(vec![BubblePart::Key(keystroke)], kind, now);
             } else {
-                self.finalize_active_with_suffix(BubblePart::Key(keystroke), now);
+                // Plain delimiters belong to the typing row that they end
+                let mut parts = Vec::new();
+                if !self.active.is_empty() {
+                    parts.push(BubblePart::Text(std::mem::take(&mut self.active)));
+                }
+                parts.push(BubblePart::Key(keystroke));
+                self.push_history(parts, BubbleKind::Typing, now);
+                self.last_key_at = None;
             }
-
             return;
         }
 
-        if keystroke.modifiers.has_command_modifier() {
+        if keystroke.modifiers.enables_shortcut() {
+            // Shortcut-like chords are keystrokes first, not typed text, so
+            // that e.g. Ctrl+Shift+7 will be resolved as the physical shortcut
+            // rather than as a layout-resolved character like Ctrl+&
             self.finalize_active(now);
             self.push_history(vec![BubblePart::Key(keystroke)], BubbleKind::Shortcut, now);
             return;
         }
 
         if let Some(text) = &keystroke.text {
-            self.append_active_text(text, now);
-
+            for ch in text.chars() {
+                if self.active.len() >= MAX_ACTIVE_TEXT_LEN {
+                    self.finalize_active(now);
+                }
+                self.active.push(ch);
+            }
             if !self.active.is_empty() {
                 self.last_key_at = Some(now);
             }
-
             return;
         }
 
@@ -147,6 +337,7 @@ impl KeystrokeState {
         }
     }
 
+    /// Finalize the active typing row if there has been a pause.
     pub fn finalize_if_inactive(&mut self, now: Instant) {
         if self
             .last_key_at
@@ -156,6 +347,7 @@ impl KeystrokeState {
         }
     }
 
+    /// Remove expired rows from history.
     pub fn prune_expired(&mut self, now: Instant) {
         while self
             .history
@@ -166,36 +358,20 @@ impl KeystrokeState {
         }
     }
 
+    /// Finalize the active typing row by moving it to history and clearing it.
     fn finalize_active(&mut self, now: Instant) {
         if !self.active.is_empty() {
             let text = std::mem::take(&mut self.active);
             self.push_history(vec![BubblePart::Text(text)], BubbleKind::Typing, now);
         }
-
         self.last_key_at = None;
     }
 
-    fn finalize_active_with_suffix(&mut self, suffix: BubblePart, now: Instant) {
-        let mut parts = Vec::new();
-
-        if !self.active.is_empty() {
-            parts.push(BubblePart::Text(std::mem::take(&mut self.active)));
-        }
-
-        parts.push(suffix);
-        self.push_history(parts, BubbleKind::Typing, now);
-        self.last_key_at = None;
-    }
-
-    fn append_active_text(&mut self, text: &str, now: Instant) {
-        for character in text.chars() {
-            if self.active.chars().count() >= MAX_ACTIVE_TEXT_LEN {
-                self.finalize_active(now);
-            }
-            self.active.push(character);
-        }
-    }
-
+    /// Push a new row to history.
+    ///
+    /// If the new row is identical to the most recent one and both are
+    /// key-only, they will be merged into a single row with an incremented
+    /// repeat count.
     fn push_history(&mut self, parts: Vec<BubblePart>, kind: BubbleKind, now: Instant) {
         if parts.iter().all(|part| matches!(part, BubblePart::Key(_)))
             && let Some(last) = self.history.back_mut()
@@ -217,6 +393,7 @@ impl KeystrokeState {
         self.trim_history();
     }
 
+    /// Trim history to fit within the history limit.
     fn trim_history(&mut self) {
         while self.history.len() > self.history_limit {
             self.history.pop_front();
@@ -224,7 +401,8 @@ impl KeystrokeState {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// One finalized row in the visible keystroke history.
+#[derive(Debug, PartialEq, Eq)]
 pub struct KeyBubble {
     pub parts: Vec<BubblePart>,
     pub kind: BubbleKind,
@@ -232,67 +410,17 @@ pub struct KeyBubble {
     last_updated_at: Instant,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// A piece of content inside a finalized keystroke row.
+#[derive(Debug, PartialEq, Eq)]
 pub enum BubblePart {
     Text(String),
     Key(Keystroke),
 }
 
+/// The visual category for a finalized keystroke row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BubbleKind {
     Typing,
     Shortcut,
     Special,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum KeyLabelPart {
-    Text(String),
-    Icon(char),
-}
-
-pub fn key_label_parts(keystroke: &Keystroke) -> Vec<KeyLabelPart> {
-    let mut parts = Vec::new();
-
-    if keystroke.modifiers.control {
-        parts.push(KeyLabelPart::Icon(ICON_KBD_CONTROL));
-    }
-    if keystroke.modifiers.alt {
-        parts.push(KeyLabelPart::Icon(ICON_KBD_ALT));
-    }
-    if keystroke.modifiers.shift {
-        parts.push(KeyLabelPart::Icon(ICON_KBD_SHIFT));
-    }
-    if keystroke.modifiers.meta {
-        parts.push(KeyLabelPart::Icon(ICON_KBD_META));
-    }
-
-    parts.push(match keystroke.key {
-        KeyId::Character(ch) => KeyLabelPart::Text(ch.to_string()),
-        KeyId::Backspace => KeyLabelPart::Icon(ICON_KBD_BACKSPACE),
-        KeyId::Delete => KeyLabelPart::Icon(ICON_KBD_DELETE),
-        KeyId::Escape => KeyLabelPart::Icon(ICON_KBD_ESCAPE),
-        KeyId::Enter => KeyLabelPart::Icon(ICON_KBD_RETURN),
-        KeyId::Tab => KeyLabelPart::Icon(ICON_KBD_TAB),
-        KeyId::Space => KeyLabelPart::Icon(ICON_KBD_SPACE),
-        KeyId::ArrowUp => KeyLabelPart::Icon(ICON_KBD_UP),
-        KeyId::ArrowDown => KeyLabelPart::Icon(ICON_KBD_DOWN),
-        KeyId::ArrowLeft => KeyLabelPart::Icon(ICON_KBD_LEFT),
-        KeyId::ArrowRight => KeyLabelPart::Icon(ICON_KBD_RIGHT),
-        KeyId::Home => KeyLabelPart::Icon(ICON_KBD_HOME),
-        KeyId::End => KeyLabelPart::Icon(ICON_KBD_END),
-        KeyId::PageUp => KeyLabelPart::Icon(ICON_KBD_PAGEUP),
-        KeyId::PageDown => KeyLabelPart::Icon(ICON_KBD_PAGEDOWN),
-        KeyId::Insert => KeyLabelPart::Text(String::from("Ins")),
-        KeyId::CapsLock => KeyLabelPart::Text(String::from("Caps")),
-        KeyId::PrintScreen => KeyLabelPart::Text(String::from("Print")),
-        KeyId::ScrollLock => KeyLabelPart::Text(String::from("Scroll")),
-        KeyId::Pause => KeyLabelPart::Text(String::from("Pause")),
-        KeyId::NumLock => KeyLabelPart::Text(String::from("Num")),
-        KeyId::Function => KeyLabelPart::Text(String::from("Fn")),
-        KeyId::F(x) => KeyLabelPart::Text(format!("F{x}")),
-        KeyId::Unknown => KeyLabelPart::Text(String::from("Unknown")),
-    });
-
-    parts
 }
