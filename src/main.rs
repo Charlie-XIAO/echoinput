@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 use global_hotkey::hotkey::{CMD_OR_CTRL, Code, HotKey, Modifiers as HotKeyModifiers};
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
 use iced::theme::Base;
+#[cfg(target_os = "linux")]
 use iced::window::raw_window_handle::RawWindowHandle;
 use iced::window::{self, Level, Position};
 use iced::{Color, Element, Point, Size, Subscription, Task, Theme};
@@ -129,13 +130,19 @@ impl App {
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::OverlayOpened(id) => {
-                let mut tasks = vec![
+                let tasks = vec![
                     window::enable_mouse_passthrough(id),
                     window::monitor_size(id)
                         .map(move |monitor_size| Message::MonitorSize(id, monitor_size)),
                 ];
+
                 #[cfg(target_os = "linux")]
-                tasks.push(configure_x11_window(id));
+                let tasks = {
+                    let mut tasks = tasks;
+                    tasks.push(configure_x11_window(id));
+                    tasks
+                };
+
                 Task::batch(tasks)
             },
             Message::SettingsOpened(id) => window::gain_focus(id),
