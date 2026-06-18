@@ -215,14 +215,6 @@ fn key_id_for_rdev_key(key: Key) -> KeyId {
         Key::Pause => KeyId::Pause,
         Key::NumLock => KeyId::NumLock,
         Key::Function => KeyId::Function,
-        Key::Unknown(_) => KeyId::Unknown,
-        Key::Alt
-        | Key::AltGr
-        | Key::ControlLeft
-        | Key::ControlRight
-        | Key::ShiftLeft
-        | Key::ShiftRight
-        | Key::MetaLeft
-        | Key::MetaRight => KeyId::Unknown,
+        _ => KeyId::Unknown,
     }
 }

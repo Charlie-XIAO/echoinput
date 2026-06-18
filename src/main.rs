@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 use global_hotkey::hotkey::{CMD_OR_CTRL, Code, HotKey, Modifiers as HotKeyModifiers};
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
 use iced::theme::Base;
+use iced::window::raw_window_handle::RawWindowHandle;
 use iced::window::{self, Level, Position};
 use iced::{Color, Element, Point, Size, Subscription, Task, Theme};
 use rdev::Event;
@@ -127,11 +128,16 @@ impl App {
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::OverlayOpened(id) => Task::batch(vec![
-                window::enable_mouse_passthrough(id),
-                window::monitor_size(id)
-                    .map(move |monitor_size| Message::MonitorSize(id, monitor_size)),
-            ]),
+            Message::OverlayOpened(id) => {
+                let mut tasks = vec![
+                    window::enable_mouse_passthrough(id),
+                    window::monitor_size(id)
+                        .map(move |monitor_size| Message::MonitorSize(id, monitor_size)),
+                ];
+                #[cfg(target_os = "linux")]
+                tasks.push(configure_x11_window(id));
+                Task::batch(tasks)
+            },
             Message::SettingsOpened(id) => window::gain_focus(id),
             Message::WindowClosed(id) => {
                 if id == self.overlay_window_id {
@@ -233,8 +239,7 @@ impl App {
         ];
 
         if self.hotkey_manager.is_some() {
-            subscriptions
-                .push(Subscription::run(global_hotkey_listener).map(Message::HotkeyEvent));
+            subscriptions.push(Subscription::run(global_hotkey_listener).map(Message::HotkeyEvent));
         }
 
         Subscription::batch(subscriptions)
@@ -323,4 +328,104 @@ fn bottom_left_position(window_size: Size, monitor_size: Size, screen_margin: f3
         screen_margin,
         (monitor_size.height - window_size.height - screen_margin).max(screen_margin),
     )
+}
+
+#[cfg(target_os = "linux")]
+fn configure_x11_window(id: window::Id) -> Task<Message> {
+    iced::window::run(id, |window| {
+        if let Ok(handle) = window.window_handle() {
+            match handle.as_raw() {
+                RawWindowHandle::Xlib(xlib_handle) => {
+                    let _ = set_x11_properties(xlib_handle.window as u32);
+                },
+                RawWindowHandle::Xcb(xcb_handle) => {
+                    let _ = set_x11_properties(xcb_handle.window.get());
+                },
+                _ => {},
+            }
+        }
+    })
+    .discard()
+}
+
+#[cfg(target_os = "linux")]
+fn set_x11_properties(xwindow: u32) -> Result<(), Box<dyn std::error::Error>> {
+    use x11rb::connection::Connection;
+    use x11rb::protocol::xproto;
+    use x11rb::protocol::xproto::ConnectionExt as _; // For send_event
+    use x11rb::wrapper::ConnectionExt as _; // For change_property32
+
+    let (conn, screen_num) = x11rb::connect(None)?;
+    let screen = &conn.setup().roots[screen_num];
+
+    x11rb::atom_manager! {
+        pub Atoms: AtomsCookie {
+            _NET_WM_STATE,
+            _NET_WM_STATE_SKIP_TASKBAR,
+            _NET_WM_STATE_SKIP_PAGER,
+            _NET_WM_WINDOW_TYPE,
+            _NET_WM_WINDOW_TYPE_UTILITY,
+            _NET_WM_STATE_ABOVE,
+        }
+    }
+
+    let atoms = Atoms::new(&conn)?.reply()?;
+
+    // Set the window type to utility
+    conn.change_property32(
+        xproto::PropMode::REPLACE,
+        xwindow,
+        atoms._NET_WM_WINDOW_TYPE,
+        xproto::AtomEnum::ATOM,
+        &[atoms._NET_WM_WINDOW_TYPE_UTILITY],
+    )?;
+
+    // Set the window state to skip taskbar and pager
+    let event_skip = xproto::ClientMessageEvent {
+        response_type: xproto::CLIENT_MESSAGE_EVENT,
+        format: 32,
+        sequence: 0,
+        window: xwindow,
+        type_: atoms._NET_WM_STATE,
+        data: xproto::ClientMessageData::from([
+            1, // Add state
+            atoms._NET_WM_STATE_SKIP_TASKBAR,
+            atoms._NET_WM_STATE_SKIP_PAGER,
+            1, // Source
+            0,
+        ]),
+    };
+
+    conn.send_event(
+        false,
+        screen.root,
+        xproto::EventMask::SUBSTRUCTURE_REDIRECT | xproto::EventMask::SUBSTRUCTURE_NOTIFY,
+        event_skip,
+    )?;
+
+    // Set the window state to always on top
+    let event_above = xproto::ClientMessageEvent {
+        response_type: xproto::CLIENT_MESSAGE_EVENT,
+        format: 32,
+        sequence: 0,
+        window: xwindow,
+        type_: atoms._NET_WM_STATE,
+        data: xproto::ClientMessageData::from([
+            1, // Add state
+            atoms._NET_WM_STATE_ABOVE,
+            0, // None
+            1, // Source
+            0,
+        ]),
+    };
+
+    conn.send_event(
+        false,
+        screen.root,
+        xproto::EventMask::SUBSTRUCTURE_REDIRECT | xproto::EventMask::SUBSTRUCTURE_NOTIFY,
+        event_above,
+    )?;
+
+    conn.flush()?;
+    Ok(())
 }
