@@ -1,3 +1,5 @@
+#[cfg(target_os = "linux")]
+use anyhow::{Context, Result};
 use iced::window::{self, Level, Position};
 use iced::{Point, Size};
 
@@ -51,9 +53,8 @@ pub fn placement(size: Size, monitor_size: Size, geometry: &Geometry) -> (Size, 
 }
 
 #[cfg(target_os = "linux")]
-pub fn configure_x11_window<Message: 'static>(id: window::Id) -> iced::Task<Message> {
-    use anyhow::{Context, Result};
-    use iced::window::raw_window_handle::{HasWindowHandle as _, RawWindowHandle};
+pub fn configure_x11_window<Message: Send + 'static>(id: window::Id) -> iced::Task<Message> {
+    use iced::window::raw_window_handle::RawWindowHandle;
 
     iced::window::run(id, |window| {
         let Ok(handle) = window.window_handle() else {
@@ -66,11 +67,10 @@ pub fn configure_x11_window<Message: 'static>(id: window::Id) -> iced::Task<Mess
             _ => None,
         };
 
-        if let Some(xwindow) = xwindow {
-            if let Err(e) = set_x11_properties(xwindow) {
+        if let Some(xwindow) = xwindow
+            && let Err(e) = set_x11_properties(xwindow) {
                 log::warn!("{e:#}");
             }
-        }
     })
     .discard()
 }
