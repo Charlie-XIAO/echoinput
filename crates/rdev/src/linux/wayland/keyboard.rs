@@ -1,7 +1,11 @@
+use std::sync::atomic::Ordering;
+
 use xkbcommon::xkb;
 
 use super::keycodes::code_from_key;
+use super::listen::{INITIAL_CAPSLOCK, INITIAL_NUMLOCK};
 use super::xkb_keycodes::internal_to_xkb_keycode;
+use crate::linux::common::is_led_on;
 use crate::rdev::{EventType, Key, KeyboardState};
 
 #[allow(dead_code)]
@@ -16,11 +20,13 @@ pub struct Keyboard {
     alt: bool,
     ctrl: bool,
     meta: bool,
+    num_lock: bool,
     shift_idx: u32,
     caps_idx: u32,
     alt_idx: u32,
     ctrl_idx: u32,
     meta_idx: u32,
+    num_idx: u32,
     current_layout: String,
     current_variant: String,
     current_model: String,
@@ -53,25 +59,34 @@ impl Keyboard {
         let alt_idx = keymap.mod_get_index("Mod1");
         let ctrl_idx = keymap.mod_get_index("Control");
         let meta_idx = keymap.mod_get_index("Mod4");
+        let num_idx = keymap.mod_get_index("Mod2");
 
-        Some(Self {
+        let caps_lock = INITIAL_CAPSLOCK.load(Ordering::SeqCst);
+        let num_lock = INITIAL_NUMLOCK.load(Ordering::SeqCst);
+
+        let mut keyboard = Self {
             context,
             keymap,
             state,
             shift: false,
-            caps_lock: false,
+            caps_lock,
             alt: false,
             ctrl: false,
             meta: false,
+            num_lock,
             shift_idx,
             caps_idx,
             alt_idx,
             ctrl_idx,
             meta_idx,
+            num_idx,
             current_layout: layout,
             current_variant: variant,
             current_model: model,
-        })
+        };
+
+        keyboard.update_modifiers();
+        Some(keyboard)
     }
 
     fn update_modifiers(&mut self) {
@@ -90,6 +105,9 @@ impl Keyboard {
         }
         if self.meta {
             depressed |= 1 << self.meta_idx;
+        }
+        if self.num_lock {
+            depressed |= 1 << self.num_idx;
         }
         self.state.update_mask(depressed, 0, 0, 0, 0, 0);
     }
@@ -137,6 +155,11 @@ impl KeyboardState for Keyboard {
                     self.update_modifiers();
                     None
                 },
+                Key::NumLock => {
+                    self.num_lock = !self.num_lock;
+                    self.update_modifiers();
+                    None
+                },
                 key => {
                     let internal_code = code_from_key(*key)?;
                     let xkb_code = internal_to_xkb_keycode(internal_code);
@@ -172,10 +195,11 @@ impl KeyboardState for Keyboard {
 
     fn reset(&mut self) {
         self.shift = false;
-        self.caps_lock = false;
+        self.caps_lock = is_led_on("::capslock");
         self.alt = false;
         self.ctrl = false;
         self.meta = false;
+        self.num_lock = is_led_on("::numlock");
         self.update_modifiers();
     }
 }

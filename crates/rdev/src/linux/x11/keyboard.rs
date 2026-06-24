@@ -5,6 +5,7 @@ use std::ptr::{NonNull, null, null_mut};
 use x11::xlib;
 
 use super::keycodes::code_from_key;
+use crate::linux::common::is_led_on;
 use crate::rdev::{EventType, Key, KeyboardState};
 
 #[derive(Debug)]
@@ -14,6 +15,7 @@ struct State {
     caps_lock: bool,
     shift: bool,
     meta: bool,
+    num_lock: bool,
 }
 
 // Inspired from https://github.com/wavexx/screenkey
@@ -26,9 +28,10 @@ impl State {
         State {
             alt: false,
             ctrl: false,
-            caps_lock: false,
+            caps_lock: is_led_on("::capslock"),
             meta: false,
             shift: false,
+            num_lock: is_led_on("::numlock"),
         }
     }
 
@@ -45,6 +48,9 @@ impl State {
         }
         if self.meta {
             res += xlib::Mod4Mask;
+        }
+        if self.num_lock {
+            res += xlib::Mod2Mask;
         }
         if self.shift {
             res += xlib::ShiftMask;
@@ -215,6 +221,10 @@ impl KeyboardState for Keyboard {
                 },
                 Key::CapsLock => {
                     self.state.caps_lock = !self.state.caps_lock;
+                    None
+                },
+                Key::NumLock => {
+                    self.state.num_lock = !self.state.num_lock;
                     None
                 },
                 key => {

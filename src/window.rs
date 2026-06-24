@@ -68,9 +68,10 @@ pub fn configure_x11_window<Message: Send + 'static>(id: window::Id) -> iced::Ta
         };
 
         if let Some(xwindow) = xwindow
-            && let Err(e) = set_x11_properties(xwindow) {
-                log::warn!("{e:#}");
-            }
+            && let Err(e) = set_x11_properties(xwindow)
+        {
+            log::warn!("{e:#}");
+        }
     })
     .discard()
 }

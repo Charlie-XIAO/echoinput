@@ -5,6 +5,7 @@ use x11::xlib;
 
 use super::keyboard::Keyboard;
 use super::keycodes::key_from_code;
+use crate::linux::common::handle_numpad_fallback;
 use crate::rdev::{Button, Event, EventType, KeyboardState};
 
 pub const FALSE: c_int = 0;
@@ -63,9 +64,13 @@ pub fn convert(
     x: f64,
     y: f64,
 ) -> Option<Event> {
-    let event_type = convert_event(code as c_uchar, type_, x, y)?;
+    let mut event_type = convert_event(code as c_uchar, type_, x, y)?;
     let kb: &mut Keyboard = (*keyboard).as_mut()?;
     let name = kb.add(&event_type);
+    if name.is_none() {
+        handle_numpad_fallback(&mut event_type);
+    }
+
     Some(Event {
         event_type,
         time: SystemTime::now(),

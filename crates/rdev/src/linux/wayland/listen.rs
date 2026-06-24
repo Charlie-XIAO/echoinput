@@ -2,6 +2,7 @@ use std::fs::{File, OpenOptions};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::{AsRawFd, OwnedFd};
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::SystemTime;
 
 use input::event::PointerEvent;
@@ -12,8 +13,12 @@ use libc::{O_RDONLY, O_RDWR, O_WRONLY, POLLIN, poll, pollfd};
 
 use super::keyboard::Keyboard;
 use super::keycodes::key_from_code;
+use crate::linux::common::{handle_numpad_fallback, is_led_on};
 use crate::rdev::{Event, KeyboardState, ListenError};
 use crate::{Button, EventType};
+
+pub static INITIAL_CAPSLOCK: AtomicBool = AtomicBool::new(false);
+pub static INITIAL_NUMLOCK: AtomicBool = AtomicBool::new(false);
 
 struct Interface;
 
@@ -69,9 +74,14 @@ fn convert_type(libevent: LibEvent) -> Option<EventType> {
         _ => None,
     }
 }
+
 fn convert(keyboard: &mut Keyboard, libevent: LibEvent) -> Option<Event> {
-    let event_type = convert_type(libevent)?;
+    let mut event_type = convert_type(libevent)?;
     let name = keyboard.add(&event_type);
+    if name.is_none() {
+        handle_numpad_fallback(&mut event_type);
+    }
+
     Some(Event {
         time: SystemTime::now(),
         name,
@@ -99,6 +109,13 @@ pub fn listen<T>(mut callback: T) -> Result<(), ListenError>
 where
     T: FnMut(Event) + 'static,
 {
+    if is_led_on("::capslock") {
+        INITIAL_CAPSLOCK.store(true, Ordering::SeqCst);
+    }
+    if is_led_on("::numlock") {
+        INITIAL_NUMLOCK.store(true, Ordering::SeqCst);
+    }
+
     let mut input = Libinput::new_with_udev(Interface);
     input.udev_assign_seat("seat0").unwrap();
     let mut keyboard = Keyboard::new().ok_or(ListenError::KeyboardError)?;
