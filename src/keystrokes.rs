@@ -53,6 +53,15 @@ pub enum DisplayKey {
     Pause,
     NumLock,
     Function,
+    VolumeUp,
+    VolumeDown,
+    VolumeMute,
+    BrightnessUp,
+    BrightnessDown,
+    PreviousTrack,
+    PlayPause,
+    PlayCd,
+    NextTrack,
     F(u8),
     Unknown,
 }
@@ -164,15 +173,15 @@ impl From<Key> for DisplayKey {
             Key::KpPlus => Self::Char('+'),
             Key::KpMultiply => Self::Char('*'),
             Key::Function => Self::Function,
-            // Key::VolumeUp => Self::VolumeUp,
-            // Key::VolumeDown => Self::VolumeDown,
-            // Key::VolumeMute => Self::VolumeMute,
-            // Key::BrightnessUp => Self::BrightnessUp,
-            // Key::BrightnessDown => Self::BrightnessDown,
-            // Key::PreviousTrack => Self::PreviousTrack,
-            // Key::PlayPause => Self::PlayPause,
-            // Key::PlayCd => Self::PlayCd,
-            // Key::NextTrack => Self::NextTrack,
+            Key::VolumeUp => Self::VolumeUp,
+            Key::VolumeDown => Self::VolumeDown,
+            Key::VolumeMute => Self::VolumeMute,
+            Key::BrightnessUp => Self::BrightnessUp,
+            Key::BrightnessDown => Self::BrightnessDown,
+            Key::PreviousTrack => Self::PreviousTrack,
+            Key::PlayPause => Self::PlayPause,
+            Key::PlayCd => Self::PlayCd,
+            Key::NextTrack => Self::NextTrack,
             Key::Alt
             | Key::AltGr
             | Key::ControlLeft
@@ -182,7 +191,6 @@ impl From<Key> for DisplayKey {
             | Key::ShiftLeft
             | Key::ShiftRight
             | Key::Unknown(_) => Self::Unknown,
-            _ => Self::Unknown,
         }
     }
 }
@@ -199,20 +207,20 @@ impl From<DisplayKey> for KeyLabel<'static> {
     fn from(key: DisplayKey) -> Self {
         match key {
             DisplayKey::Char(ch) => Self::Char(ch),
-            DisplayKey::Backspace => Self::Icon(Icon::KbdBackspace),
-            DisplayKey::Delete => Self::Icon(Icon::KbdDelete),
-            DisplayKey::Escape => Self::Icon(Icon::KbdEscape),
-            DisplayKey::Enter => Self::Icon(Icon::KbdEnter),
-            DisplayKey::Tab => Self::Icon(Icon::KbdTab),
-            DisplayKey::Space => Self::Icon(Icon::KbdSpace),
-            DisplayKey::ArrowUp => Self::Icon(Icon::KbdArrowUp),
-            DisplayKey::ArrowDown => Self::Icon(Icon::KbdArrowDown),
-            DisplayKey::ArrowLeft => Self::Icon(Icon::KbdArrowLeft),
-            DisplayKey::ArrowRight => Self::Icon(Icon::KbdArrowRight),
-            DisplayKey::Home => Self::Icon(Icon::KbdHome),
-            DisplayKey::End => Self::Icon(Icon::KbdEnd),
-            DisplayKey::PageUp => Self::Icon(Icon::KbdPageUp),
-            DisplayKey::PageDown => Self::Icon(Icon::KbdPageDown),
+            DisplayKey::Backspace => Self::Icon(Icon::Delete),
+            DisplayKey::Delete => Self::Icon(Icon::DeleteRev),
+            DisplayKey::Escape => Self::Icon(Icon::CircleArrowOutUpLeft),
+            DisplayKey::Enter => Self::Icon(Icon::CornerDownLeft),
+            DisplayKey::Tab => Self::Icon(Icon::ArrowRightToLine),
+            DisplayKey::Space => Self::Icon(Icon::SpaceNarrow),
+            DisplayKey::ArrowUp => Self::Icon(Icon::ArrowUp),
+            DisplayKey::ArrowDown => Self::Icon(Icon::ArrowDown),
+            DisplayKey::ArrowLeft => Self::Icon(Icon::ArrowLeft),
+            DisplayKey::ArrowRight => Self::Icon(Icon::ArrowRight),
+            DisplayKey::Home => Self::Icon(Icon::ArrowUpLeft),
+            DisplayKey::End => Self::Icon(Icon::ArrowDownRight),
+            DisplayKey::PageUp => Self::Icon(Icon::ArrowUpToLine),
+            DisplayKey::PageDown => Self::Icon(Icon::ArrowDownToLine),
             DisplayKey::Insert => Self::Text(Cow::Borrowed("Ins")),
             DisplayKey::CapsLock => Self::Text(Cow::Borrowed("Caps")),
             DisplayKey::PrintScreen => Self::Text(Cow::Borrowed("PrtSc")),
@@ -220,6 +228,15 @@ impl From<DisplayKey> for KeyLabel<'static> {
             DisplayKey::Pause => Self::Text(Cow::Borrowed("Pause")),
             DisplayKey::NumLock => Self::Text(Cow::Borrowed("NumLk")),
             DisplayKey::Function => Self::Text(Cow::Borrowed("Fn")),
+            DisplayKey::VolumeUp => Self::Icon(Icon::Volume2),
+            DisplayKey::VolumeDown => Self::Icon(Icon::Volume1),
+            DisplayKey::VolumeMute => Self::Icon(Icon::VolumeOff),
+            DisplayKey::BrightnessUp => Self::Icon(Icon::Sun),
+            DisplayKey::BrightnessDown => Self::Icon(Icon::SunDim),
+            DisplayKey::PreviousTrack => Self::Text(Cow::Borrowed("PrevTrack")),
+            DisplayKey::PlayPause => Self::Text(Cow::Borrowed("PlayPause")),
+            DisplayKey::PlayCd => Self::Text(Cow::Borrowed("PlayCd")),
+            DisplayKey::NextTrack => Self::Text(Cow::Borrowed("NextTrack")),
             DisplayKey::F(x) => Self::Text(Cow::Owned(format!("F{x}"))),
             DisplayKey::Unknown => Self::Text(Cow::Borrowed("Unknown")),
         }
@@ -242,16 +259,16 @@ impl Keystroke {
         let mut parts = Vec::new();
 
         if self.modifiers.control {
-            parts.push(KeyLabel::Icon(Icon::KbdControl));
+            parts.push(KeyLabel::Icon(Icon::ChevronUp));
         }
         if self.modifiers.alt {
-            parts.push(KeyLabel::Icon(Icon::KbdAlt));
+            parts.push(KeyLabel::Icon(Icon::Option));
         }
         if self.modifiers.shift {
-            parts.push(KeyLabel::Icon(Icon::KbdShift));
+            parts.push(KeyLabel::Icon(Icon::ArrowBigUp));
         }
         if self.modifiers.meta {
-            parts.push(KeyLabel::Icon(Icon::KbdMeta));
+            parts.push(KeyLabel::Icon(Icon::Command));
         }
 
         parts.push(self.key.into());

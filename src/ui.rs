@@ -3,10 +3,12 @@ use std::borrow::Cow;
 use iced::widget::{Column, Row, container, text};
 use iced::{Background, Border, Color, Element, Font, Size, Theme, alignment, border, padding};
 
-use crate::icons::{ICON_FONT, Icon};
+use crate::icons::Icon;
 use crate::keystrokes::{
     BubbleKind, BubblePart, KeyLabel, KeystrokeState, MAX_ACTIVE_TEXT_LEN, Modifiers,
 };
+
+const ICON_FONT: Font = Font::with_name("echoinput-icons");
 
 const MONOSPACE_CHAR_WIDTH_RATIO: f32 = 0.62;
 const REPEAT_COUNT_CHAR_BUDGET: f32 = 3.0;
@@ -196,16 +198,16 @@ impl Layout {
         Row::new()
             .spacing(self.row_spacing + 2.0)
             .padding(padding::top(self.modifier_top_padding))
-            .push(self.modifier_key(Icon::KbdControl, modifiers.control))
-            .push(self.modifier_key(Icon::KbdAlt, modifiers.alt))
-            .push(self.modifier_key(Icon::KbdShift, modifiers.shift))
-            .push(self.modifier_key(Icon::KbdMeta, modifiers.meta))
+            .push(self.modifier_key(Icon::ChevronUp, modifiers.control))
+            .push(self.modifier_key(Icon::Option, modifiers.alt))
+            .push(self.modifier_key(Icon::ArrowBigUp, modifiers.shift))
+            .push(self.modifier_key(Icon::Command, modifiers.meta))
             .into()
     }
 
     fn modifier_key<'a, Message: 'a>(&'a self, icon: Icon, active: bool) -> Element<'a, Message> {
         container(
-            text(icon.codepoint())
+            text(char::from(icon))
                 .font(ICON_FONT)
                 .size(self.modifier_font_size)
                 .line_height(self.text_line_height),
@@ -247,7 +249,7 @@ impl Layout {
         let text = match label {
             KeyLabel::Text(content) => text(content).font(Font::MONOSPACE),
             KeyLabel::Char(ch) => text(ch).font(Font::MONOSPACE),
-            KeyLabel::Icon(icon) => text(icon.codepoint()).font(ICON_FONT),
+            KeyLabel::Icon(icon) => text(char::from(icon)).font(ICON_FONT),
         };
         text.size(self.event_font_size)
             .line_height(self.text_line_height)

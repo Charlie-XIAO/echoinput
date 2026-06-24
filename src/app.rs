@@ -5,7 +5,6 @@ use iced::theme::Base;
 use iced::{Color, Element, Subscription, Task, Theme, window};
 
 use crate::hotkey::HotKeyId;
-use crate::icons::ICON_FONT_DATA;
 use crate::input::{GlobalInputEvent, InputEvent, InputNormalizer};
 use crate::keystrokes::{KeystrokeState, Modifiers};
 use crate::settings::Settings;
@@ -23,7 +22,7 @@ pub fn run() -> iced::Result {
             style.background_color = Color::TRANSPARENT;
             style
         })
-        .font(ICON_FONT_DATA)
+        .font(include_bytes!("../assets/fonts/echoinput-icons.ttf"))
         .subscription(App::subscription)
         .run()
 }
