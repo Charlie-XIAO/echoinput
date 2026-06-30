@@ -155,3 +155,25 @@ fn set_x11_properties(xwindow: u32) -> Result<()> {
         .context("failed to flush x11 window property changes")?;
     Ok(())
 }
+
+#[cfg(target_os = "macos")]
+pub fn configure_macos_window<Message: Send + 'static>(id: window::Id) -> iced::Task<Message> {
+    use iced::window::raw_window_handle::RawWindowHandle;
+    use objc2_app_kit::NSView;
+
+    iced::window::run(id, |window| {
+        let Ok(handle) = window.window_handle() else {
+            return;
+        };
+
+        if let RawWindowHandle::AppKit(handle) = handle.as_raw() {
+            let ns_view = handle.ns_view.as_ptr() as *mut NSView;
+            if let Some(ns_view) = unsafe { ns_view.as_ref() } {
+                if let Some(ns_window) = ns_view.window() {
+                    ns_window.setHasShadow(false);
+                }
+            }
+        }
+    })
+    .discard()
+}

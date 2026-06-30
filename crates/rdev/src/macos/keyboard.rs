@@ -112,14 +112,22 @@ impl Keyboard {
     ) -> Option<String> {
         unsafe {
             let mut keyboard = TISCopyCurrentKeyboardInputSource();
-            let mut layout = TISGetInputSourceProperty(keyboard, kTISPropertyUnicodeKeyLayoutData);
+            let mut layout = std::ptr::null();
+            if !keyboard.is_null() {
+                layout = TISGetInputSourceProperty(keyboard, kTISPropertyUnicodeKeyLayoutData);
+            }
 
             if layout.is_null() {
-                // TISGetInputSourceProperty returns NULL when using CJK input methods,
-                // using TISCopyCurrentKeyboardLayoutInputSource to fix it.
+                if !keyboard.is_null() {
+                    CFRelease(keyboard);
+                }
                 keyboard = TISCopyCurrentKeyboardLayoutInputSource();
+                if keyboard.is_null() {
+                    return None;
+                }
                 layout = TISGetInputSourceProperty(keyboard, kTISPropertyUnicodeKeyLayoutData);
                 if layout.is_null() {
+                    CFRelease(keyboard);
                     return None;
                 }
             }

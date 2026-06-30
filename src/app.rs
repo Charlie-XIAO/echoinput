@@ -14,6 +14,11 @@ use crate::window::Geometry;
 const TICK_INTERVAL: Duration = Duration::from_millis(100);
 
 pub fn run() -> iced::Result {
+    #[cfg(target_os = "macos")]
+    unsafe {
+        set_macos_activation_policy();
+    }
+
     iced::daemon(App::boot, App::update, App::view)
         .title("EchoInput")
         .theme(Theme::Dark)
@@ -25,6 +30,17 @@ pub fn run() -> iced::Result {
         .font(include_bytes!("../assets/fonts/echoinput-icons.ttf"))
         .subscription(App::subscription)
         .run()
+}
+
+#[cfg(target_os = "macos")]
+unsafe fn set_macos_activation_policy() {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+
+    if let Some(mtm) = MainThreadMarker::new() {
+        let app = NSApplication::sharedApplication(mtm);
+        let _ = app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+    }
 }
 
 struct App {
@@ -100,6 +116,8 @@ impl App {
                 window::monitor_size(id).map(move |size| Message::MonitorSize(id, size)),
                 #[cfg(target_os = "linux")]
                 crate::window::configure_x11_window(id),
+                #[cfg(target_os = "macos")]
+                crate::window::configure_macos_window(id),
             ]),
             Message::WindowClosed(id) => {
                 assert_eq!(id, self.window_id, "unexpected window id: {id}");

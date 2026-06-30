@@ -93,6 +93,10 @@ pub fn listener() -> impl iced::futures::Stream<Item = GlobalInputEvent> {
 
             std::thread::spawn(move || {
                 let tx_clone = tx.clone();
+
+                #[cfg(target_os = "macos")]
+                rdev::set_is_main_thread(false);
+
                 if let Err(e) = rdev::listen(move |event| {
                     let _ = tx_clone.send(GlobalInputEvent::Event(event));
                 }) {
