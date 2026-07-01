@@ -1,5 +1,3 @@
-#[cfg(target_os = "linux")]
-use anyhow::{Context, Result};
 use iced::window::{self, Level, Position};
 use iced::{Point, Size};
 
@@ -77,7 +75,8 @@ pub fn configure_x11_window<Message: Send + 'static>(id: window::Id) -> iced::Ta
 }
 
 #[cfg(target_os = "linux")]
-fn set_x11_properties(xwindow: u32) -> Result<()> {
+fn set_x11_properties(xwindow: u32) -> anyhow::Result<()> {
+    use anyhow::Context;
     use x11rb::connection::Connection;
     use x11rb::protocol::xproto;
     use x11rb::protocol::xproto::ConnectionExt as _;
@@ -168,10 +167,10 @@ pub fn configure_macos_window<Message: Send + 'static>(id: window::Id) -> iced::
 
         if let RawWindowHandle::AppKit(handle) = handle.as_raw() {
             let ns_view = handle.ns_view.as_ptr() as *mut NSView;
-            if let Some(ns_view) = unsafe { ns_view.as_ref() } {
-                if let Some(ns_window) = ns_view.window() {
-                    ns_window.setHasShadow(false);
-                }
+            if let Some(ns_view) = unsafe { ns_view.as_ref() }
+                && let Some(ns_window) = ns_view.window()
+            {
+                ns_window.setHasShadow(false);
             }
         }
     })

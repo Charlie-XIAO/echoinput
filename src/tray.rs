@@ -31,8 +31,8 @@ pub fn init() -> Result<(Tray, impl iced::futures::Stream<Item = TrayEvent>)> {
 
     let icon =
         Icon::from_rgba(checker_icon_rgba(32), 32, 32).context("failed to create tray icon")?;
+
     let state = TrayState::new()
-        .with_title("EchoInput")
         .with_icon(icon)
         .with_tooltip("EchoInput")
         .with_menu(Menu::new([

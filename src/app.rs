@@ -136,10 +136,7 @@ impl App {
                     monitor_size,
                     &self.geometry,
                 );
-                Task::batch(vec![
-                    window::resize(id, size),
-                    window::move_to(id, position),
-                ])
+                Task::batch([window::resize(id, size), window::move_to(id, position)])
             },
             Message::MonitorSize(_, None) => {
                 log::warn!("failed to get monitor size");

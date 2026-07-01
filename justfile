@@ -9,7 +9,6 @@ _default:
 
 fmt:
     cargo +nightly fmt
-    taplo fmt
 
 lint:
     cargo clippy --fix --allow-dirty --allow-staged -- -D warnings
