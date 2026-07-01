@@ -24,6 +24,9 @@ anyhow = "1"
 humantime = "2.1"
 log = { version = "0.4", features = ["std", "max_level_info"] }
 open = "5"
+trayinit = { git = "https://github.com/Charlie-XIAO/trayinit.git", branch = "main", default-features = false, features = [
+  "linux-zbus-tokio",
+] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = "0.13.2"

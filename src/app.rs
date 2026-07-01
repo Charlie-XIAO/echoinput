@@ -1,13 +1,16 @@
 use std::time::{Duration, Instant};
 
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
+use iced::futures::StreamExt;
 use iced::theme::Base;
 use iced::{Color, Element, Subscription, Task, Theme, window};
+use trayinit::{Tray, TrayEvent};
 
 use crate::hotkey::HotKeyId;
 use crate::input::{GlobalInputEvent, InputEvent, InputNormalizer};
 use crate::keystrokes::{KeystrokeState, Modifiers};
 use crate::settings::Settings;
+use crate::tray::TrayItem;
 use crate::ui::Layout;
 use crate::window::Geometry;
 
@@ -51,6 +54,7 @@ struct App {
     input: InputNormalizer,
     keystrokes: KeystrokeState,
     held_modifiers: Modifiers,
+    _tray: Option<Tray>,
     _hotkey_manager: Option<GlobalHotKeyManager>,
 }
 
@@ -60,6 +64,7 @@ enum Message {
     WindowClosed(window::Id),
     MonitorSize(window::Id, Option<iced::Size>),
     InputEvent(GlobalInputEvent),
+    TrayEvent(TrayEvent),
     HotkeyEvent(GlobalHotKeyEvent),
     Tick(Instant),
 }
@@ -90,9 +95,23 @@ impl App {
         let geometry = Geometry::default();
         let keystrokes = KeystrokeState::new(settings.history_limit);
 
+        let mut tasks = Vec::new();
+
+        let tray = match crate::tray::init() {
+            Ok((tray, stream)) => {
+                tasks.push(Task::stream(stream.map(Message::TrayEvent)));
+                Some(tray)
+            },
+            Err(e) => {
+                log::error!("failed to initialize system tray: {e:#}");
+                None
+            },
+        };
+
         let window_settings =
             crate::window::settings(layout.content_size(settings.history_limit), &geometry);
         let (window_id, open_window) = window::open(window_settings);
+        tasks.push(open_window.map(Message::WindowOpened));
 
         (
             Self {
@@ -103,9 +122,10 @@ impl App {
                 input: InputNormalizer::default(),
                 keystrokes,
                 held_modifiers: Modifiers::default(),
+                _tray: tray,
                 _hotkey_manager: hotkey_manager,
             },
-            open_window.map(Message::WindowOpened),
+            Task::batch(tasks),
         )
     }
 
@@ -158,6 +178,40 @@ impl App {
                 }
 
                 Task::none()
+            },
+            Message::TrayEvent(event) => {
+                let TrayEvent::MenuItemActivated { item_id, .. } = event else {
+                    return Task::none();
+                };
+                match item_id.as_str() {
+                    TrayItem::OPEN_SETTINGS => {
+                        if let Err(e) = crate::settings::open() {
+                            log::error!("failed to open settings file: {e:#}");
+                        }
+                        Task::none()
+                    },
+                    TrayItem::RELOAD_SETTINGS => match crate::settings::load() {
+                        Ok(settings) => {
+                            log::info!("settings reloaded");
+                            self.apply_settings(settings)
+                        },
+                        Err(e) => {
+                            log::warn!("failed to reload settings: {e:#}");
+                            Task::none()
+                        },
+                    },
+                    TrayItem::OPEN_LOG => {
+                        if let Err(e) = crate::logging::open() {
+                            log::warn!("failed to open log file: {e:#}");
+                        }
+                        Task::none()
+                    },
+                    TrayItem::QUIT => iced::exit(),
+                    _ => {
+                        log::warn!("unrecognized tray menu item: {item_id}");
+                        Task::none()
+                    },
+                }
             },
             Message::HotkeyEvent(event) => {
                 if event.state != HotKeyState::Released {
