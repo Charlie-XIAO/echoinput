@@ -1,5 +1,4 @@
 mod app;
-mod hotkey;
 mod icons;
 mod input;
 mod keystrokes;

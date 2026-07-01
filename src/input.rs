@@ -24,11 +24,6 @@ pub struct InputNormalizer {
 }
 
 impl InputNormalizer {
-    pub fn reset_modifiers(&mut self) {
-        self.modifiers = Modifiers::default();
-        self.pressed_modifier_keys.clear();
-    }
-
     pub fn handle_event(&mut self, event: Event) -> Option<InputEvent> {
         match event.event_type {
             EventType::KeyPress(key) => match key.is_modifier() {

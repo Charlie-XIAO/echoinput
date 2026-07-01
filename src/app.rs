@@ -1,12 +1,10 @@
 use std::time::{Duration, Instant};
 
-use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState};
 use iced::futures::StreamExt;
 use iced::theme::Base;
 use iced::{Color, Element, Subscription, Task, Theme, window};
 use trayinit::{Tray, TrayEvent};
 
-use crate::hotkey::HotKeyId;
 use crate::input::{GlobalInputEvent, InputEvent, InputNormalizer};
 use crate::keystrokes::{KeystrokeState, Modifiers};
 use crate::settings::Settings;
@@ -55,7 +53,6 @@ struct App {
     keystrokes: KeystrokeState,
     held_modifiers: Modifiers,
     _tray: Option<Tray>,
-    _hotkey_manager: Option<GlobalHotKeyManager>,
 }
 
 #[derive(Debug, Clone)]
@@ -65,7 +62,6 @@ enum Message {
     MonitorSize(window::Id, Option<iced::Size>),
     InputEvent(GlobalInputEvent),
     TrayEvent(TrayEvent),
-    HotkeyEvent(GlobalHotKeyEvent),
     Tick(Instant),
 }
 
@@ -74,14 +70,6 @@ impl App {
         if let Err(e) = crate::logging::init() {
             eprintln!("failed to initialize logging: {e:#}");
         }
-
-        let hotkey_manager = match crate::hotkey::init() {
-            Ok(manager) => Some(manager),
-            Err(e) => {
-                log::error!("failed to initialize hotkeys: {e:#}");
-                None
-            },
-        };
 
         let settings = match crate::settings::load() {
             Ok(settings) => settings,
@@ -123,7 +111,6 @@ impl App {
                 keystrokes,
                 held_modifiers: Modifiers::default(),
                 _tray: tray,
-                _hotkey_manager: hotkey_manager,
             },
             Task::batch(tasks),
         )
@@ -213,46 +200,6 @@ impl App {
                     },
                 }
             },
-            Message::HotkeyEvent(event) => {
-                if event.state != HotKeyState::Released {
-                    return Task::none();
-                }
-
-                // We know the hotkey is released, so we reset the modifiers to
-                // avoid displaying stuck modifiers
-                self.input.reset_modifiers();
-                self.held_modifiers = Modifiers::default();
-
-                match event.id {
-                    HotKeyId::OPEN_SETTINGS => {
-                        if let Err(e) = crate::settings::open() {
-                            log::error!("failed to open settings file: {e:#}");
-                        }
-                        Task::none()
-                    },
-                    HotKeyId::RELOAD_SETTINGS => match crate::settings::load() {
-                        Ok(settings) => {
-                            log::info!("settings reloaded");
-                            self.apply_settings(settings)
-                        },
-                        Err(e) => {
-                            log::warn!("failed to reload settings: {e:#}");
-                            Task::none()
-                        },
-                    },
-                    HotKeyId::OPEN_LOG => {
-                        if let Err(e) = crate::logging::open() {
-                            log::warn!("failed to open log file: {e:#}");
-                        }
-                        Task::none()
-                    },
-                    HotKeyId::QUIT => iced::exit(),
-                    _ => {
-                        log::warn!("unrecognized hotkey event: {}", event.id);
-                        Task::none()
-                    },
-                }
-            },
             Message::Tick(now) => {
                 self.keystrokes.finalize_if_inactive(now);
                 self.keystrokes.prune_expired(now);
@@ -270,7 +217,6 @@ impl App {
         Subscription::batch(vec![
             window::close_events().map(Message::WindowClosed),
             Subscription::run(crate::input::listener).map(Message::InputEvent),
-            Subscription::run(crate::hotkey::listener).map(Message::HotkeyEvent),
             iced::time::every(TICK_INTERVAL).map(Message::Tick),
         ])
     }
