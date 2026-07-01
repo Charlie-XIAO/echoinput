@@ -64,7 +64,11 @@ pub fn listener() -> impl iced::futures::Stream<Item = GlobalHotKeyEvent> {
             }));
 
             while let Some(event) = rx.recv().await {
-                let _ = output.send(event).await;
+                if let Err(e) = output.send(event).await
+                    && e.is_disconnected()
+                {
+                    break;
+                }
             }
         },
     )

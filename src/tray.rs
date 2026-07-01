@@ -49,7 +49,11 @@ pub fn init() -> Result<(Tray, impl iced::futures::Stream<Item = TrayEvent>)> {
         |mut output: iced::futures::channel::mpsc::Sender<TrayEvent>| async move {
             std::thread::spawn(move || {
                 while let Ok(event) = rx.recv() {
-                    let _ = output.try_send(event);
+                    if let Err(e) = output.try_send(event)
+                        && e.is_disconnected()
+                    {
+                        break;
+                    }
                 }
             });
         },
