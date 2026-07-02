@@ -26,6 +26,7 @@ open = "5"
 trayinit = { git = "https://github.com/Charlie-XIAO/trayinit.git", branch = "main", default-features = false, features = [
   "linux-zbus-tokio",
 ] }
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = "0.13.2"

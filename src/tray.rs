@@ -1,21 +1,6 @@
 use anyhow::{Context, Result};
+use image::ImageFormat;
 use trayinit::{Icon, Menu, MenuNode, Tray, TrayEvent, TrayState};
-
-fn checker_icon_rgba(size: usize) -> Vec<u8> {
-    let mut rgba = Vec::with_capacity(size * size * 4);
-    for y in 0..size {
-        for x in 0..size {
-            let light = ((x / 8) + (y / 8)) % 2 == 0;
-            let (r, g, b) = if light {
-                (0x26, 0xa6, 0x9a)
-            } else {
-                (0x24, 0x2a, 0x32)
-            };
-            rgba.extend_from_slice(&[r, g, b, 0xff]);
-        }
-    }
-    rgba
-}
 
 pub struct TrayItem;
 
@@ -29,8 +14,14 @@ impl TrayItem {
 pub fn init() -> Result<(Tray, impl iced::futures::Stream<Item = TrayEvent>)> {
     let (sink, rx) = trayinit::channel();
 
-    let icon =
-        Icon::from_rgba(checker_icon_rgba(32), 32, 32).context("failed to create tray icon")?;
+    let icon = {
+        let bytes = include_bytes!("../assets/logo.png");
+        let img = image::load_from_memory_with_format(bytes, ImageFormat::Png)
+            .context("failed to load tray icon")?
+            .to_rgba8();
+        let (width, height) = img.dimensions();
+        Icon::from_rgba(img.into_raw(), width, height).context("failed to create tray icon")?
+    };
 
     let state = TrayState::new()
         .with_icon(icon)
