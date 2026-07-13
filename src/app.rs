@@ -9,7 +9,7 @@ use crate::input::{GlobalInputEvent, InputEvent, InputNormalizer};
 use crate::keystrokes::{KeystrokeState, Modifiers};
 use crate::settings::Settings;
 use crate::tray::TrayItem;
-use crate::ui::Layout;
+use crate::ui::KeystrokeLayout;
 use crate::window::Geometry;
 
 const TICK_INTERVAL: Duration = Duration::from_millis(100);
@@ -47,7 +47,7 @@ unsafe fn set_macos_activation_policy() {
 struct App {
     window_id: window::Id,
     settings: Settings,
-    layout: Layout,
+    layout: KeystrokeLayout,
     geometry: Geometry,
     input: InputNormalizer,
     keystrokes: KeystrokeState,
@@ -79,7 +79,7 @@ impl App {
             },
         };
 
-        let layout = Layout::default();
+        let layout = KeystrokeLayout::default();
         let geometry = Geometry::default();
         let keystrokes = KeystrokeState::new(settings.history_limit);
 
