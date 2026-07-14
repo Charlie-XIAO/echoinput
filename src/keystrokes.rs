@@ -344,6 +344,7 @@ impl KeystrokeState {
             }
             if !self.active.is_empty() {
                 self.last_key_at = Some(now);
+                self.trim_history();
             }
             return;
         }
@@ -412,7 +413,10 @@ impl KeystrokeState {
 
     /// Trim history to fit within the history limit.
     fn trim_history(&mut self) {
-        while self.history.len() > self.history_limit {
+        let capacity = self
+            .history_limit
+            .saturating_sub(usize::from(!self.active.is_empty()));
+        while self.history.len() > capacity {
             self.history.pop_front();
         }
     }

@@ -79,10 +79,9 @@ impl KeystrokeLayout {
             .row_height(self.modifier_font_size, self.modifier_padding_vertical)
             + self.modifier_top_padding;
 
-        let row_count = history_limit as f32 + 2.0;
-        let spacing = self.column_spacing * (row_count - 1.0);
+        let spacing = self.column_spacing * (history_limit as f32);
 
-        (event_row_height * (history_limit as f32 + 1.0) + modifier_row_height + spacing).ceil()
+        (event_row_height * (history_limit as f32) + modifier_row_height + spacing).ceil()
     }
 
     fn row_height(&self, font_size: f32, vertical_padding: f32) -> f32 {

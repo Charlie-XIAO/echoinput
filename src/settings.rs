@@ -84,7 +84,7 @@ fn ensure_settings_file() -> Result<PathBuf> {
 /// Write the default settings content.
 #[rustfmt::skip]
 fn write_default_settings<W: Write>(w: &mut W) -> Result<()> {
-    writeln!(w, "# Number of finalized keystroke rows to keep.")?;
+    writeln!(w, "# Maximum number of finalized keystroke rows to keep.")?;
     writeln!(w, "# Valid range: [{MIN_HISTORY_LIMIT}, {MAX_HISTORY_LIMIT}].")?;
     writeln!(w, "history_limit = {DEFAULT_HISTORY_LIMIT}")?;
     Ok(())

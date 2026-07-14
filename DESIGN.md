@@ -32,6 +32,7 @@ graph TD
 ```
 
 ### Key Dependencies
+
 1. **`iced` (v0.14)**: For rendering the overlay windows with transparency, borderless style, and mouse passthrough.
 2. **`rdev`**: For establishing the global keyboard input hook (Linux X11, macOS, Windows).
 3. **`trayinit` / `image`**: For the system tray icon and menu, using the PNG app logo as the tray icon.
@@ -45,6 +46,7 @@ graph TD
 ## 3. Detailed Component Designs
 
 ### A. Window Strategy: Compact Keystroke Overlay
+
 - The current keystroke visualizer uses a compact, borderless, transparent click-through window instead of a maximized/fullscreen overlay.
 - The window size is computed from runtime layout values and keystroke limits such as history count, max active text length, font sizes, text line-height, spacing, and padding.
 - The default placement is bottom-left with a screen margin. Once the monitor size is known, the window is clamped to the monitor's available area inside that margin. Placement is not configurable yet, but the runtime layout values are structured so this can be added later.
@@ -55,11 +57,12 @@ graph TD
 - Future cursor-following mouse visualization may need a separate window or a different overlay strategy.
 
 ### B. Keystroke Grouping Algorithm
-- Normal keys (alphanumeric and symbols) are appended to the *current active bubble*.
+
+- Normal keys (alphanumeric and symbols) are appended to the _current active bubble_.
 - Delimiters like `Space`, `Enter`, or `Tab` are appended to the same event row and then finalize the active typing bubble.
 - **Inactivity Timeout**: If no keystroke occurs for `1` second, the current bubble is finalized. Subsequent typing starts a new bubble.
 - **History Expiration**: Finalized bubbles disappear after `5` seconds. Duplicate key-only bubbles refresh their expiration when their repeat count increases.
-- **History Limit**: The number of finalized history rows is configurable from `1` to `10`, defaults to `5`, and is persisted to TOML settings.
+- **History Limit**: The total number of visible keystroke rows, including the active typing row, is configurable from `1` to `10`, defaults to `5`, and is persisted to TOML settings.
 - **Active Text Limit**: Active text is capped at 24 characters before it is split into a new history row. A delimiter may appear after that text as an extra bubble in the same row.
 - **Backspace Handling**:
   - If a Backspace key is pressed while text is active, the active text bubble is finalized first.
@@ -72,6 +75,7 @@ graph TD
 - **Expiration Order**: History expiration times are monotonic because new bubbles append to the back and only the latest duplicate bubble can be refreshed. Expiration pruning only removes from the front of the queue.
 
 ### C. Mouse Event Follower
+
 - Not implemented in the current vertical slice.
 - Tracks global mouse pointer coordinates via `rdev`.
 - A modern, semi-transparent mouse silhouette is drawn on the overlay at the cursor position.
@@ -81,12 +85,14 @@ graph TD
   - Scroll wheel area lights up showing a directional arrow (↑ or ↓) depending on the scroll direction, which fades out after 300ms.
 
 ### D. Settings
+
 - The tray menu can open the TOML settings file in the OS default editor.
 - Settings are persisted as TOML at `dirs::config_dir()/echoinput/settings.toml`. If the file is missing, EchoInput writes an initial commented config with defaults.
 - Settings currently include `history_limit`.
 - The tray menu can reload settings from disk. Successful reloads apply immediately, trim excess history rows, and resize/reposition the overlay. Invalid settings are logged and the current runtime settings remain active.
 
 ### E. Diagnostics
+
 - Diagnostics are written to `dirs::data_local_dir()/echoinput/echoinput.log`.
 - The current log rotates to `echoinput.old.log` when it exceeds the size cap.
 - Logging is fixed to `info`, `warn`, and `error` records. `debug` and `trace` records are compiled out via `log/max_level_info`.
@@ -97,6 +103,7 @@ graph TD
 ## 4. Tray Menu
 
 The system tray is the current control surface:
+
 - `Open Settings`: Open the TOML settings file.
 - `Reload Settings`: Reload settings from disk.
 - `Open Log`: Open the diagnostics log file.
@@ -117,6 +124,7 @@ The system tray is the current control surface:
 Current stage: **first vertical slice / keystroke visualizer**.
 
 Completed:
+
 - Compact transparent `iced` overlay window sized from layout and keystroke limits.
 - Monitor-aware overlay clamping so the compact window does not extend beyond the available screen area.
 - Always-on-top borderless window configuration.
@@ -132,6 +140,7 @@ Completed:
 - macOS tiny-skia transparency through a patched `softbuffer` CoreGraphics backend.
 
 In progress / next:
+
 - Manual verification of keystroke grouping behavior on the target OS.
 - Mouse follower rendering and click/scroll feedback.
 - Future tray status/error indication and richer tray actions.
