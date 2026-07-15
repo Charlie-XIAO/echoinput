@@ -9,25 +9,60 @@ const MIN_HISTORY_LIMIT: usize = 1;
 const MAX_HISTORY_LIMIT: usize = 10;
 const DEFAULT_HISTORY_LIMIT: usize = 5;
 
+const DEFAULT_MARGIN: u32 = 40;
+
 #[derive(Debug, Deserialize)]
+#[serde(default)]
 pub struct Settings {
-    #[serde(
-        default = "default_history_limit",
-        deserialize_with = "deserialize_history_limit"
-    )]
+    #[serde(deserialize_with = "deserialize_history_limit")]
     pub history_limit: usize,
+    pub placement: Placement,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            history_limit: default_history_limit(),
+            history_limit: DEFAULT_HISTORY_LIMIT,
+            placement: Placement::default(),
         }
     }
 }
 
-const fn default_history_limit() -> usize {
-    DEFAULT_HISTORY_LIMIT
+#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct Placement {
+    pub anchor: PlacementAnchor,
+    pub margin_x: u32,
+    pub margin_y: u32,
+}
+
+impl Default for Placement {
+    fn default() -> Self {
+        Self {
+            anchor: PlacementAnchor::BottomLeft,
+            margin_x: DEFAULT_MARGIN,
+            margin_y: DEFAULT_MARGIN,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum PlacementAnchor {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+}
+
+impl PlacementAnchor {
+    pub fn is_top(&self) -> bool {
+        matches!(self, Self::TopLeft | Self::TopRight)
+    }
+
+    pub fn is_right(&self) -> bool {
+        matches!(self, Self::TopRight | Self::BottomRight)
+    }
 }
 
 fn deserialize_history_limit<'de, D>(deserializer: D) -> Result<usize, D::Error>
@@ -87,5 +122,17 @@ fn write_default_settings<W: Write>(w: &mut W) -> Result<()> {
     writeln!(w, "# Maximum number of finalized keystroke rows to keep.")?;
     writeln!(w, "# Valid range: [{MIN_HISTORY_LIMIT}, {MAX_HISTORY_LIMIT}].")?;
     writeln!(w, "history_limit = {DEFAULT_HISTORY_LIMIT}")?;
+    writeln!(w)?;
+    writeln!(w, "[placement]")?;
+    writeln!(w)?;
+    writeln!(w, "# The corner of the screen to which the overlay is anchored.")?;
+    writeln!(w, "# If anchored top, the layout will be top to bottom.")?;
+    writeln!(w, "# If anchored bottom, the layout will be bottom to top.")?;
+    writeln!(w, "# Valid values: bottom-left, bottom-right, top-left, top-right.")?;
+    writeln!(w, "anchor = \"bottom-left\"")?;
+    writeln!(w)?;
+    writeln!(w, "# Margins from the anchored corner in pixels.")?;
+    writeln!(w, "margin_x = {DEFAULT_MARGIN}")?;
+    writeln!(w, "margin_y = {DEFAULT_MARGIN}")?;
     Ok(())
 }

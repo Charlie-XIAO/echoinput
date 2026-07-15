@@ -5,8 +5,9 @@ use iced::{Background, Color, Element, Font, Size, Theme, alignment, padding};
 
 use crate::icons::Icon;
 use crate::keystrokes::{
-    BubbleKind, BubblePart, KeyLabel, KeystrokeState, MAX_ACTIVE_TEXT_LEN, Modifiers,
+    BubbleKind, BubblePart, KeyBubble, KeyLabel, KeystrokeState, MAX_ACTIVE_TEXT_LEN, Modifiers,
 };
+use crate::settings::Placement;
 use crate::ui::style::{self, DesignTokens, ICON_FONT};
 
 const MONOSPACE_CHAR_WIDTH_RATIO: f32 = 0.62;
@@ -92,43 +93,30 @@ impl KeystrokeLayout {
         &'a self,
         keystrokes: &'a KeystrokeState,
         held_modifiers: &'a Modifiers,
+        placement: &'a Placement,
     ) -> Element<'a, Message> {
+        let horizontal_alignment = if placement.anchor.is_right() {
+            alignment::Horizontal::Right
+        } else {
+            alignment::Horizontal::Left
+        };
+
+        let vertical_alignment = if placement.anchor.is_top() {
+            alignment::Vertical::Top
+        } else {
+            alignment::Vertical::Bottom
+        };
+
         let mut keystroke_list = Column::new()
             .spacing(self.column_spacing)
-            .align_x(alignment::Horizontal::Left);
+            .align_x(horizontal_alignment);
 
-        for bubble in &keystrokes.history {
-            let mut row = Row::new()
-                .spacing(self.row_spacing)
-                .align_y(alignment::Vertical::Center);
-
-            for part in &bubble.parts {
-                match part {
-                    BubblePart::Text(text) => {
-                        row = row.push(self.key_label(KeyLabel::Text(Cow::Borrowed(text))));
-                    },
-                    BubblePart::Key(keystroke) => {
-                        for label in keystroke.labels() {
-                            row = row.push(self.key_label(label));
-                        }
-                    },
-                }
+        if placement.anchor.is_top() {
+            keystroke_list = keystroke_list.push(self.modifier_row(held_modifiers));
+        } else {
+            for bubble in keystrokes.history.iter() {
+                keystroke_list = keystroke_list.push(self.history_row(bubble));
             }
-
-            if bubble.count > 1 {
-                row = row.push(
-                    container(
-                        text(format!("×{}", bubble.count))
-                            .font(Font::MONOSPACE)
-                            .size(self.repeat_count_font_size)
-                            .line_height(self.tokens.typography.line_height)
-                            .color(style::with_alpha(self.tokens.colors.muted_fg, 0.8)),
-                    )
-                    .padding(padding::left(4)),
-                );
-            }
-
-            keystroke_list = keystroke_list.push(self.event_bubble(row, bubble.kind));
         }
 
         if !keystrokes.active.is_empty() {
@@ -136,22 +124,62 @@ impl KeystrokeLayout {
                 .spacing(self.row_spacing)
                 .align_y(alignment::Vertical::Center)
                 .push(self.key_label(KeyLabel::Text(Cow::Borrowed(&keystrokes.active))));
-
             keystroke_list = keystroke_list.push(self.event_bubble(row, BubbleKind::Typing));
         }
 
-        keystroke_list = keystroke_list.push(self.modifier_row(held_modifiers));
+        if placement.anchor.is_top() {
+            // If anchored top, history is displayed from newest to oldest
+            for bubble in keystrokes.history.iter().rev() {
+                keystroke_list = keystroke_list.push(self.history_row(bubble));
+            }
+        } else {
+            keystroke_list = keystroke_list.push(self.modifier_row(held_modifiers));
+        }
 
         container(keystroke_list)
             .width(iced::Length::Fill)
             .height(iced::Length::Fill)
-            .align_x(alignment::Horizontal::Left)
-            .align_y(alignment::Vertical::Bottom)
+            .align_x(horizontal_alignment)
+            .align_y(vertical_alignment)
             .style(|_: &Theme| container::Style {
                 background: Some(Background::Color(Color::TRANSPARENT)),
                 ..Default::default()
             })
             .into()
+    }
+
+    fn history_row<'a, Message: 'a>(&'a self, bubble: &'a KeyBubble) -> Element<'a, Message> {
+        let mut row = Row::new()
+            .spacing(self.row_spacing)
+            .align_y(alignment::Vertical::Center);
+
+        for part in &bubble.parts {
+            match part {
+                BubblePart::Text(text) => {
+                    row = row.push(self.key_label(KeyLabel::Text(Cow::Borrowed(text))));
+                },
+                BubblePart::Key(keystroke) => {
+                    for label in keystroke.labels() {
+                        row = row.push(self.key_label(label));
+                    }
+                },
+            }
+        }
+
+        if bubble.count > 1 {
+            row = row.push(
+                container(
+                    text(format!("×{}", bubble.count))
+                        .font(Font::MONOSPACE)
+                        .size(self.repeat_count_font_size)
+                        .line_height(self.tokens.typography.line_height)
+                        .color(style::with_alpha(self.tokens.colors.muted_fg, 0.8)),
+                )
+                .padding(padding::left(4)),
+            );
+        }
+
+        self.event_bubble(row, bubble.kind)
     }
 
     fn event_bubble<'a, Message: 'a>(

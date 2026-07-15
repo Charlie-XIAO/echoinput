@@ -10,7 +10,6 @@ use crate::keystrokes::{KeystrokeState, Modifiers};
 use crate::settings::Settings;
 use crate::tray::TrayItem;
 use crate::ui::KeystrokeLayout;
-use crate::window::Geometry;
 
 const TICK_INTERVAL: Duration = Duration::from_millis(100);
 
@@ -48,7 +47,6 @@ struct App {
     window_id: window::Id,
     settings: Settings,
     layout: KeystrokeLayout,
-    geometry: Geometry,
     input: InputNormalizer,
     keystrokes: KeystrokeState,
     held_modifiers: Modifiers,
@@ -59,7 +57,11 @@ struct App {
 enum Message {
     WindowOpened(window::Id),
     WindowClosed(window::Id),
-    MonitorSize(window::Id, Option<iced::Size>),
+    MonitorSize {
+        id: window::Id,
+        size: Option<iced::Size>,
+        resize: bool,
+    },
     InputEvent(GlobalInputEvent),
     TrayEvent(TrayEvent),
     Tick(Instant),
@@ -80,7 +82,6 @@ impl App {
         };
 
         let layout = KeystrokeLayout::default();
-        let geometry = Geometry::default();
         let keystrokes = KeystrokeState::new(settings.history_limit);
 
         let mut tasks = Vec::new();
@@ -96,8 +97,10 @@ impl App {
             },
         };
 
-        let window_settings =
-            crate::window::settings(layout.content_size(settings.history_limit), &geometry);
+        let window_settings = crate::window::settings(
+            layout.content_size(settings.history_limit),
+            &settings.placement,
+        );
         let (window_id, open_window) = window::open(window_settings);
         tasks.push(open_window.map(Message::WindowOpened));
 
@@ -106,7 +109,6 @@ impl App {
                 window_id,
                 settings,
                 layout,
-                geometry,
                 input: InputNormalizer::default(),
                 keystrokes,
                 held_modifiers: Modifiers::default(),
@@ -120,7 +122,11 @@ impl App {
         match message {
             Message::WindowOpened(id) => Task::batch(vec![
                 window::enable_mouse_passthrough(id),
-                window::monitor_size(id).map(move |size| Message::MonitorSize(id, size)),
+                window::monitor_size(id).map(move |size| Message::MonitorSize {
+                    id,
+                    size,
+                    resize: false,
+                }),
                 #[cfg(target_os = "linux")]
                 crate::window::configure_x11_window(id),
                 #[cfg(target_os = "macos")]
@@ -130,15 +136,21 @@ impl App {
                 assert_eq!(id, self.window_id, "unexpected window id: {id}");
                 iced::exit()
             },
-            Message::MonitorSize(id, Some(monitor_size)) => {
-                let (size, position) = crate::window::placement(
-                    self.layout.content_size(self.settings.history_limit),
-                    monitor_size,
-                    &self.geometry,
-                );
-                Task::batch([window::resize(id, size), window::move_to(id, position)])
+            Message::MonitorSize {
+                id,
+                size: Some(monitor_size),
+                resize,
+            } => {
+                let size = self.layout.content_size(self.settings.history_limit);
+                let position =
+                    crate::window::position(size, monitor_size, &self.settings.placement);
+                if resize {
+                    Task::batch([window::resize(id, size), window::move_to(id, position)])
+                } else {
+                    window::move_to(id, position)
+                }
             },
-            Message::MonitorSize(_, None) => {
+            Message::MonitorSize { size: None, .. } => {
                 log::warn!("failed to get monitor size");
                 Task::none()
             },
@@ -207,7 +219,11 @@ impl App {
 
     fn view(&self, window: window::Id) -> Element<'_, Message> {
         assert_eq!(window, self.window_id, "unexpected window id: {window}");
-        self.layout.view(&self.keystrokes, &self.held_modifiers)
+        self.layout.view(
+            &self.keystrokes,
+            &self.held_modifiers,
+            &self.settings.placement,
+        )
     }
 
     fn subscription(&self) -> Subscription<Message> {
@@ -220,13 +236,21 @@ impl App {
 
     fn apply_settings(&mut self, settings: Settings) -> Task<Message> {
         let old_settings = std::mem::replace(&mut self.settings, settings);
+        let history_limit_changed = self.settings.history_limit != old_settings.history_limit;
+        let placement_changed = self.settings.placement != old_settings.placement;
 
-        if self.settings.history_limit != old_settings.history_limit {
+        if history_limit_changed {
             self.keystrokes
                 .set_history_limit(self.settings.history_limit);
+        }
+
+        if history_limit_changed || placement_changed {
             let window_id = self.window_id;
-            return window::monitor_size(window_id)
-                .map(move |monitor_size| Message::MonitorSize(window_id, monitor_size));
+            return window::monitor_size(window_id).map(move |size| Message::MonitorSize {
+                id: window_id,
+                size,
+                resize: history_limit_changed,
+            });
         }
 
         Task::none()

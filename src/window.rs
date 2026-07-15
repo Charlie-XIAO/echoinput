@@ -1,24 +1,16 @@
 use iced::window::{self, Level, Position};
 use iced::{Point, Size};
 
-#[derive(Debug)]
-pub struct Geometry {
-    pub screen_margin: f32,
-}
-
-impl Default for Geometry {
-    fn default() -> Self {
-        Self {
-            screen_margin: 40.0,
-        }
-    }
-}
+use crate::settings::Placement;
 
 /// Returns the window settings.
-pub fn settings(size: Size, geometry: &Geometry) -> window::Settings {
+pub fn settings(size: Size, placement: &Placement) -> window::Settings {
     let settings = window::Settings {
         size,
-        position: Position::Specific(Point::new(geometry.screen_margin, geometry.screen_margin)),
+        position: Position::Specific(Point::new(
+            placement.margin_x as f32,
+            placement.margin_y as f32,
+        )),
         transparent: true,
         decorations: false,
         level: Level::AlwaysOnTop,
@@ -36,18 +28,24 @@ pub fn settings(size: Size, geometry: &Geometry) -> window::Settings {
     settings
 }
 
-/// Returns the window size and position.
-pub fn placement(size: Size, monitor_size: Size, geometry: &Geometry) -> (Size, Point) {
-    let max_width = (monitor_size.width - geometry.screen_margin * 2.0).max(1.0);
-    let max_height = (monitor_size.height - geometry.screen_margin * 2.0).max(1.0);
+/// Returns the position of a window on its monitor.
+pub fn position(size: Size, monitor_size: Size, placement: &Placement) -> Point {
+    let margin_x = placement.margin_x as f32;
+    let margin_y = placement.margin_y as f32;
 
-    let size = Size::new(size.width.min(max_width), size.height.min(max_height));
-    let position = Point::new(
-        geometry.screen_margin,
-        (monitor_size.height - size.height - geometry.screen_margin).max(geometry.screen_margin),
-    );
+    let x = if placement.anchor.is_right() {
+        monitor_size.width - size.width - margin_x
+    } else {
+        margin_x
+    };
 
-    (size, position)
+    let y = if placement.anchor.is_top() {
+        margin_y
+    } else {
+        monitor_size.height - size.height - margin_y
+    };
+
+    Point::new(x, y)
 }
 
 #[cfg(target_os = "linux")]

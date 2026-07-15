@@ -49,7 +49,7 @@ graph TD
 
 - The current keystroke visualizer uses a compact, borderless, transparent click-through window instead of a maximized/fullscreen overlay.
 - The window size is computed from runtime layout values and keystroke limits such as history count, max active text length, font sizes, text line-height, spacing, and padding.
-- The default placement is bottom-left with a screen margin. Once the monitor size is known, the window is clamped to the monitor's available area inside that margin. Placement is not configurable yet, but the runtime layout values are structured so this can be added later.
+- Overlay placement is configurable as top-left, top-right, bottom-left, or bottom-right with independent logical-pixel X/Y margins. The window is not clamped to monitor bounds, so a configured position may intentionally overflow the screen.
 - The app uses iced's daemon API so it can own the click-through overlay while still running global subscriptions.
 - If the overlay window is closed, the daemon exits instead of continuing invisibly.
 - Windows hides the overlay from the taskbar through winit platform settings. Linux/X11 sets utility, skip-taskbar, skip-pager, and above window-manager hints after creation. macOS uses an accessory activation policy and removes the overlay shadow.
@@ -70,7 +70,7 @@ graph TD
 - **Modifiers & Shortcut commands**:
   - Keys combined with command-style modifiers (Control, Alt/Option, or Super/Command) immediately finalize the active typing bubble and display as one shortcut row.
   - Shortcut rows render each modifier/key as a separate bubble in the same row, e.g. `Super+Shift+S` appears as three adjacent bubbles.
-  - A subtle modifier row is always visible at the bottom and highlights held modifiers.
+  - A subtle modifier row is always visible at the aligned vertical edge and highlights held modifiers. Newer keystrokes remain adjacent to it.
 - **Duplicate Compression**: Adjacent finalized key-only bubbles with the same content and kind are collapsed into one history entry with a small inline repeat count such as `×2` or `×3`. Text bubbles are not compressed.
 - **Expiration Order**: History expiration times are monotonic because new bubbles append to the back and only the latest duplicate bubble can be refreshed. Expiration pruning only removes from the front of the queue.
 
@@ -88,7 +88,7 @@ graph TD
 
 - The tray menu can open the TOML settings file in the OS default editor.
 - Settings are persisted as TOML at `dirs::config_dir()/echoinput/settings.toml`. If the file is missing, EchoInput writes an initial commented config with defaults.
-- Settings currently include `history_limit`.
+- Settings include `history_limit` plus a `[placement]` section with `anchor`, `margin_x`, and `margin_y`.
 - The tray menu can reload settings from disk. Successful reloads apply immediately, trim excess history rows, and resize/reposition the overlay. Invalid settings are logged and the current runtime settings remain active.
 
 ### E. Diagnostics
