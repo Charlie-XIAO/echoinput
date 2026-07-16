@@ -5,11 +5,12 @@ use iced::theme::Base;
 use iced::{Color, Element, Subscription, Task, Theme, window};
 use trayinit::{Tray, TrayEvent};
 
-use crate::input::{GlobalInputEvent, InputEvent, InputNormalizer};
-use crate::keystrokes::{KeystrokeState, Modifiers};
-use crate::settings::Settings;
+use crate::input::{GlobalInputEvent, InputNormalizer};
+use crate::keystrokes::KeystrokeState;
+use crate::settings::{Settings, SettingsEditor, SettingsEditorAction, SettingsMessage};
 use crate::tray::TrayItem;
-use crate::ui::KeystrokeLayout;
+use crate::ui::keystroke::KeystrokeView;
+use crate::ui::settings::SettingsView;
 
 const TICK_INTERVAL: Duration = Duration::from_millis(100);
 
@@ -44,12 +45,10 @@ unsafe fn set_macos_activation_policy() {
 }
 
 struct App {
-    window_id: window::Id,
+    keystroke_window: KeystrokeWindow,
+    settings_window: Option<SettingsWindow>,
     settings: Settings,
-    layout: KeystrokeLayout,
     input: InputNormalizer,
-    keystrokes: KeystrokeState,
-    held_modifiers: Modifiers,
     _tray: Option<Tray>,
 }
 
@@ -57,14 +56,26 @@ struct App {
 enum Message {
     WindowOpened(window::Id),
     WindowClosed(window::Id),
-    MonitorSize {
-        id: window::Id,
-        size: Option<iced::Size>,
+    KeystrokeWindowMonitorSize {
+        monitor_size: Option<iced::Size>,
         resize: bool,
     },
     InputEvent(GlobalInputEvent),
     TrayEvent(TrayEvent),
     Tick(Instant),
+    Settings(SettingsMessage),
+}
+
+struct KeystrokeWindow {
+    id: window::Id,
+    state: KeystrokeState,
+    view: KeystrokeView,
+}
+
+struct SettingsWindow {
+    id: window::Id,
+    editor: SettingsEditor,
+    view: SettingsView,
 }
 
 impl App {
@@ -81,7 +92,7 @@ impl App {
             },
         };
 
-        let layout = KeystrokeLayout::default();
+        let keystroke_view = KeystrokeView::default();
         let keystrokes = KeystrokeState::new(settings.history_limit);
 
         let mut tasks = Vec::new();
@@ -97,21 +108,23 @@ impl App {
             },
         };
 
-        let window_settings = crate::window::settings(
-            layout.content_size(settings.history_limit),
+        let keystroke_window_settings = crate::window::keystroke::settings(
+            keystroke_view.content_size(settings.history_limit),
             &settings.placement,
         );
-        let (window_id, open_window) = window::open(window_settings);
-        tasks.push(open_window.map(Message::WindowOpened));
+        let (keystroke_window_id, open_keystroke_window) = window::open(keystroke_window_settings);
+        tasks.push(open_keystroke_window.map(Message::WindowOpened));
 
         (
             Self {
-                window_id,
+                keystroke_window: KeystrokeWindow {
+                    id: keystroke_window_id,
+                    state: keystrokes,
+                    view: keystroke_view,
+                },
+                settings_window: None,
                 settings,
-                layout,
                 input: InputNormalizer::default(),
-                keystrokes,
-                held_modifiers: Modifiers::default(),
                 _tray: tray,
             },
             Task::batch(tasks),
@@ -120,37 +133,69 @@ impl App {
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::WindowOpened(id) => Task::batch(vec![
-                window::enable_mouse_passthrough(id),
-                window::monitor_size(id).map(move |size| Message::MonitorSize {
-                    id,
-                    size,
-                    resize: false,
-                }),
-                #[cfg(target_os = "linux")]
-                crate::window::configure_x11_window(id),
-                #[cfg(target_os = "macos")]
-                crate::window::configure_macos_window(id),
-            ]),
-            Message::WindowClosed(id) => {
-                assert_eq!(id, self.window_id, "unexpected window id: {id}");
-                iced::exit()
-            },
-            Message::MonitorSize {
-                id,
-                size: Some(monitor_size),
-                resize,
-            } => {
-                let size = self.layout.content_size(self.settings.history_limit);
-                let position =
-                    crate::window::position(size, monitor_size, &self.settings.placement);
-                if resize {
-                    Task::batch([window::resize(id, size), window::move_to(id, position)])
+            Message::WindowOpened(id) => {
+                if id == self.keystroke_window.id {
+                    Task::batch(vec![
+                        window::enable_mouse_passthrough(id),
+                        window::monitor_size(id).map(|monitor_size| {
+                            Message::KeystrokeWindowMonitorSize {
+                                monitor_size,
+                                resize: false,
+                            }
+                        }),
+                        #[cfg(target_os = "linux")]
+                        crate::window::configure_keystroke_x11_window(id),
+                        #[cfg(target_os = "macos")]
+                        crate::window::configure_keystroke_macos_window(id),
+                    ])
                 } else {
-                    window::move_to(id, position)
+                    let settings_window = self
+                        .settings_window
+                        .as_ref()
+                        .expect("unexpected window opened");
+                    assert_eq!(id, settings_window.id, "unexpected window id: {id}");
+                    window::gain_focus(id)
                 }
             },
-            Message::MonitorSize { size: None, .. } => {
+            Message::WindowClosed(id) => {
+                if id == self.keystroke_window.id {
+                    iced::exit()
+                } else if self
+                    .settings_window
+                    .as_ref()
+                    .is_some_and(|settings_window| id == settings_window.id)
+                {
+                    self.settings_window = None;
+                    Task::none()
+                } else {
+                    panic!("unexpected window id: {id}");
+                }
+            },
+            Message::KeystrokeWindowMonitorSize {
+                monitor_size: Some(monitor_size),
+                resize,
+            } => {
+                let size = self
+                    .keystroke_window
+                    .view
+                    .content_size(self.settings.history_limit);
+                let position = crate::window::keystroke::position(
+                    size,
+                    monitor_size,
+                    &self.settings.placement,
+                );
+                if resize {
+                    Task::batch([
+                        window::resize(self.keystroke_window.id, size),
+                        window::move_to(self.keystroke_window.id, position),
+                    ])
+                } else {
+                    window::move_to(self.keystroke_window.id, position)
+                }
+            },
+            Message::KeystrokeWindowMonitorSize {
+                monitor_size: None, ..
+            } => {
                 log::warn!("failed to get monitor size");
                 Task::none()
             },
@@ -163,14 +208,8 @@ impl App {
                     },
                 };
 
-                match self.input.handle_event(event) {
-                    Some(InputEvent::Keystroke(keystroke)) => {
-                        self.keystrokes.handle_keystroke(keystroke, Instant::now());
-                    },
-                    Some(InputEvent::ModifiersChanged(modifiers)) => {
-                        self.held_modifiers = modifiers;
-                    },
-                    None => {},
+                if let Some(event) = self.input.handle_event(event) {
+                    self.keystroke_window.state.handle(event, Instant::now());
                 }
 
                 Task::none()
@@ -180,15 +219,15 @@ impl App {
                     return Task::none();
                 };
                 match item_id.as_str() {
-                    TrayItem::OPEN_SETTINGS => {
-                        if let Err(e) = crate::settings::open() {
-                            log::error!("failed to open settings file: {e:#}");
-                        }
-                        Task::none()
-                    },
+                    TrayItem::OPEN_SETTINGS => self.open_settings_window(),
                     TrayItem::RELOAD_SETTINGS => match crate::settings::load() {
                         Ok(settings) => {
                             log::info!("settings reloaded");
+                            if let Some(settings_window) = &mut self.settings_window
+                                && !settings_window.editor.is_dirty()
+                            {
+                                settings_window.editor.reset(&settings);
+                            }
                             self.apply_settings(settings)
                         },
                         Err(e) => {
@@ -210,20 +249,31 @@ impl App {
                 }
             },
             Message::Tick(now) => {
-                self.keystrokes.finalize_if_inactive(now);
-                self.keystrokes.prune_expired(now);
+                self.keystroke_window.state.finalize_if_inactive(now);
+                self.keystroke_window.state.prune_expired(now);
                 Task::none()
             },
+            Message::Settings(message) => self.update_settings(message),
         }
     }
 
     fn view(&self, window: window::Id) -> Element<'_, Message> {
-        assert_eq!(window, self.window_id, "unexpected window id: {window}");
-        self.layout.view(
-            &self.keystrokes,
-            &self.held_modifiers,
-            &self.settings.placement,
-        )
+        if window == self.keystroke_window.id {
+            return self
+                .keystroke_window
+                .view
+                .view(&self.keystroke_window.state, &self.settings.placement);
+        }
+
+        let settings_window = self
+            .settings_window
+            .as_ref()
+            .expect("unexpected settings window view");
+        assert_eq!(window, settings_window.id, "unexpected window id: {window}");
+        settings_window
+            .view
+            .view(&settings_window.editor)
+            .map(Message::Settings)
     }
 
     fn subscription(&self) -> Subscription<Message> {
@@ -240,19 +290,68 @@ impl App {
         let placement_changed = self.settings.placement != old_settings.placement;
 
         if history_limit_changed {
-            self.keystrokes
+            self.keystroke_window
+                .state
                 .set_history_limit(self.settings.history_limit);
         }
 
         if history_limit_changed || placement_changed {
-            let window_id = self.window_id;
-            return window::monitor_size(window_id).map(move |size| Message::MonitorSize {
-                id: window_id,
-                size,
-                resize: history_limit_changed,
+            return window::monitor_size(self.keystroke_window.id).map(move |monitor_size| {
+                Message::KeystrokeWindowMonitorSize {
+                    monitor_size,
+                    resize: history_limit_changed,
+                }
             });
         }
 
         Task::none()
+    }
+
+    fn open_settings_window(&mut self) -> Task<Message> {
+        if let Some(settings_window) = &self.settings_window {
+            return window::gain_focus(settings_window.id);
+        }
+
+        let settings_window_settings = crate::window::settings::settings();
+        let (id, open_settings_window) = window::open(settings_window_settings);
+        self.settings_window = Some(SettingsWindow {
+            id,
+            editor: SettingsEditor::new(&self.settings),
+            view: SettingsView::default(),
+        });
+        open_settings_window.map(Message::WindowOpened)
+    }
+
+    fn update_settings(&mut self, message: SettingsMessage) -> Task<Message> {
+        let action = self
+            .settings_window
+            .as_mut()
+            .expect("settings message without settings window")
+            .editor
+            .update(message);
+
+        match action {
+            Some(SettingsEditorAction::Save(settings)) => {
+                if let Err(e) = crate::settings::save(&settings) {
+                    log::error!("failed to save settings: {e:#}");
+                    return Task::none();
+                }
+
+                self.settings_window
+                    .as_mut()
+                    .expect("settings message without settings window")
+                    .editor
+                    .reset(&settings);
+
+                self.apply_settings(settings)
+            },
+            Some(SettingsEditorAction::EditJson) => {
+                if let Err(e) = crate::settings::open() {
+                    log::error!("failed to open settings file: {e:#}");
+                }
+                Task::none()
+            },
+            None => Task::none(),
+        }
     }
 }

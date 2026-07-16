@@ -1,17 +1,14 @@
 use std::fs::File;
-use std::io::{BufWriter, Write};
-use std::path::PathBuf;
+use std::io::{BufReader, BufWriter};
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 
 const MIN_HISTORY_LIMIT: usize = 1;
 const MAX_HISTORY_LIMIT: usize = 10;
-const DEFAULT_HISTORY_LIMIT: usize = 5;
 
-const DEFAULT_MARGIN: u32 = 40;
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Settings {
     #[serde(deserialize_with = "deserialize_history_limit")]
@@ -22,13 +19,13 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            history_limit: DEFAULT_HISTORY_LIMIT,
+            history_limit: 5,
             placement: Placement::default(),
         }
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct Placement {
     pub anchor: PlacementAnchor,
@@ -40,13 +37,13 @@ impl Default for Placement {
     fn default() -> Self {
         Self {
             anchor: PlacementAnchor::BottomLeft,
-            margin_x: DEFAULT_MARGIN,
-            margin_y: DEFAULT_MARGIN,
+            margin_x: 40,
+            margin_y: 40,
         }
     }
 }
 
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum PlacementAnchor {
     TopLeft,
@@ -65,6 +62,136 @@ impl PlacementAnchor {
     }
 }
 
+impl std::fmt::Display for PlacementAnchor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::TopLeft => f.write_str("Top left"),
+            Self::TopRight => f.write_str("Top right"),
+            Self::BottomLeft => f.write_str("Bottom left"),
+            Self::BottomRight => f.write_str("Bottom right"),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct SettingsDraft {
+    pub history_limit: String,
+    pub anchor: PlacementAnchor,
+    pub margin_x: String,
+    pub margin_y: String,
+}
+
+/// A user interaction originating from the settings UI.
+#[derive(Debug, Clone)]
+pub enum SettingsMessage {
+    HistoryLimitChanged(String),
+    AnchorChanged(PlacementAnchor),
+    MarginXChanged(String),
+    MarginYChanged(String),
+    Save,
+    EditJson,
+}
+
+/// A side effect requested by a settings editor interaction.
+pub enum SettingsEditorAction {
+    Save(Settings),
+    EditJson,
+}
+
+/// The unsaved settings state for an open settings window.
+#[derive(Debug)]
+pub struct SettingsEditor {
+    draft: SettingsDraft,
+    dirty: bool,
+}
+
+impl SettingsEditor {
+    pub fn new(settings: &Settings) -> Self {
+        Self {
+            draft: SettingsDraft::new(settings),
+            dirty: false,
+        }
+    }
+
+    pub fn draft(&self) -> &SettingsDraft {
+        &self.draft
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
+    pub fn reset(&mut self, settings: &Settings) {
+        self.draft = SettingsDraft::new(settings);
+        self.dirty = false;
+    }
+
+    pub fn update(&mut self, message: SettingsMessage) -> Option<SettingsEditorAction> {
+        match message {
+            SettingsMessage::HistoryLimitChanged(value) => {
+                self.draft.history_limit = value;
+            },
+            SettingsMessage::AnchorChanged(value) => {
+                self.draft.anchor = value;
+            },
+            SettingsMessage::MarginXChanged(value) => {
+                self.draft.margin_x = value;
+            },
+            SettingsMessage::MarginYChanged(value) => {
+                self.draft.margin_y = value;
+            },
+            SettingsMessage::Save => {
+                return self.draft.settings().map(SettingsEditorAction::Save);
+            },
+            SettingsMessage::EditJson => return Some(SettingsEditorAction::EditJson),
+        }
+
+        self.dirty = true;
+        None
+    }
+}
+
+impl SettingsDraft {
+    pub fn new(settings: &Settings) -> Self {
+        Self {
+            history_limit: settings.history_limit.to_string(),
+            anchor: settings.placement.anchor,
+            margin_x: settings.placement.margin_x.to_string(),
+            margin_y: settings.placement.margin_y.to_string(),
+        }
+    }
+
+    pub fn settings(&self) -> Option<Settings> {
+        if !self.history_limit_is_valid() || !self.margin_x_is_valid() || !self.margin_y_is_valid()
+        {
+            return None;
+        }
+
+        Some(Settings {
+            history_limit: self.history_limit.parse().ok()?,
+            placement: Placement {
+                anchor: self.anchor,
+                margin_x: self.margin_x.parse().ok()?,
+                margin_y: self.margin_y.parse().ok()?,
+            },
+        })
+    }
+
+    pub fn history_limit_is_valid(&self) -> bool {
+        self.history_limit
+            .parse()
+            .is_ok_and(|value| (MIN_HISTORY_LIMIT..=MAX_HISTORY_LIMIT).contains(&value))
+    }
+
+    pub fn margin_x_is_valid(&self) -> bool {
+        self.margin_x.parse::<u32>().is_ok()
+    }
+
+    pub fn margin_y_is_valid(&self) -> bool {
+        self.margin_y.parse::<u32>().is_ok()
+    }
+}
+
 fn deserialize_history_limit<'de, D>(deserializer: D) -> Result<usize, D::Error>
 where
     D: Deserializer<'de>,
@@ -77,12 +204,19 @@ where
 pub fn load() -> Result<Settings> {
     let path = ensure_settings_file()?;
 
-    let content = std::fs::read_to_string(&path)
-        .with_context(|| format!("failed to read settings from {}", path.display()))?;
-    let settings = toml::from_str::<Settings>(&content)
-        .with_context(|| format!("failed to parse settings from {}", path.display()))?;
+    let file = File::open(&path)
+        .with_context(|| format!("failed to open settings file: {}", path.display()))?;
+    let reader = BufReader::new(file);
+    let settings = serde_json::from_reader(reader)
+        .with_context(|| format!("failed to parse settings file: {}", path.display()))?;
 
     Ok(settings)
+}
+
+/// Save settings to the settings file.
+pub fn save(settings: &Settings) -> Result<()> {
+    let path = ensure_settings_file()?;
+    write_settings(&path, settings)
 }
 
 /// Open the settings file with the default application.
@@ -93,8 +227,6 @@ pub fn open() -> Result<()> {
 }
 
 /// Ensure that the settings file exists and return its path.
-///
-/// If the file does not yet exist, it will be created with default content.
 fn ensure_settings_file() -> Result<PathBuf> {
     let dir = dirs::config_dir()
         .context("failed to find settings directory")?
@@ -102,37 +234,19 @@ fn ensure_settings_file() -> Result<PathBuf> {
     std::fs::create_dir_all(&dir)
         .with_context(|| format!("failed to create settings directory: {}", dir.display()))?;
 
-    let path = dir.join("settings.toml");
+    let path = dir.join("settings.json");
     if path.exists() {
         return Ok(path);
     }
 
-    let writer = File::create(&path)
-        .with_context(|| format!("failed to create settings file {}", path.display()))?;
-    let mut writer = BufWriter::new(writer);
-    write_default_settings(&mut writer)
-        .with_context(|| format!("failed to write initial settings to {}", path.display()))?;
-
     Ok(path)
 }
 
-/// Write the default settings content.
-#[rustfmt::skip]
-fn write_default_settings<W: Write>(w: &mut W) -> Result<()> {
-    writeln!(w, "# Maximum number of finalized keystroke rows to keep.")?;
-    writeln!(w, "# Valid range: [{MIN_HISTORY_LIMIT}, {MAX_HISTORY_LIMIT}].")?;
-    writeln!(w, "history_limit = {DEFAULT_HISTORY_LIMIT}")?;
-    writeln!(w)?;
-    writeln!(w, "[placement]")?;
-    writeln!(w)?;
-    writeln!(w, "# The corner of the screen to which the overlay is anchored.")?;
-    writeln!(w, "# If anchored top, the layout will be top to bottom.")?;
-    writeln!(w, "# If anchored bottom, the layout will be bottom to top.")?;
-    writeln!(w, "# Valid values: bottom-left, bottom-right, top-left, top-right.")?;
-    writeln!(w, "anchor = \"bottom-left\"")?;
-    writeln!(w)?;
-    writeln!(w, "# Margins from the anchored corner in pixels.")?;
-    writeln!(w, "margin_x = {DEFAULT_MARGIN}")?;
-    writeln!(w, "margin_y = {DEFAULT_MARGIN}")?;
+fn write_settings(path: &Path, settings: &Settings) -> Result<()> {
+    let file = File::create(path)
+        .with_context(|| format!("failed to create settings file: {}", path.display()))?;
+    let mut writer = BufWriter::new(file);
+    serde_json::to_writer_pretty(&mut writer, settings)
+        .with_context(|| format!("failed to write settings file: {}", path.display()))?;
     Ok(())
 }

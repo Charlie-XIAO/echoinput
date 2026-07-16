@@ -15,7 +15,7 @@ const REPEAT_COUNT_CHAR_BUDGET: f32 = 3.0;
 const MODIFIER_ROW_MAX_ITEMS: f32 = 5.0;
 
 #[derive(Debug)]
-pub struct KeystrokeLayout {
+pub struct KeystrokeView {
     tokens: DesignTokens,
     event_font_size: f32,
     repeat_count_font_size: f32,
@@ -30,7 +30,7 @@ pub struct KeystrokeLayout {
     width_slack: f32,
 }
 
-impl Default for KeystrokeLayout {
+impl Default for KeystrokeView {
     fn default() -> Self {
         Self {
             tokens: DesignTokens::dark(),
@@ -49,7 +49,7 @@ impl Default for KeystrokeLayout {
     }
 }
 
-impl KeystrokeLayout {
+impl KeystrokeView {
     pub fn content_size(&self, history_limit: usize) -> Size {
         Size::new(self.stack_width(), self.stack_height(history_limit))
     }
@@ -92,7 +92,6 @@ impl KeystrokeLayout {
     pub fn view<'a, Message: 'a>(
         &'a self,
         keystrokes: &'a KeystrokeState,
-        held_modifiers: &'a Modifiers,
         placement: &'a Placement,
     ) -> Element<'a, Message> {
         let horizontal_alignment = if placement.anchor.is_right() {
@@ -112,7 +111,7 @@ impl KeystrokeLayout {
             .align_x(horizontal_alignment);
 
         if placement.anchor.is_top() {
-            keystroke_list = keystroke_list.push(self.modifier_row(held_modifiers));
+            keystroke_list = keystroke_list.push(self.modifier_row(&keystrokes.held_modifiers));
         } else {
             for bubble in keystrokes.history.iter() {
                 keystroke_list = keystroke_list.push(self.history_row(bubble));
@@ -133,7 +132,7 @@ impl KeystrokeLayout {
                 keystroke_list = keystroke_list.push(self.history_row(bubble));
             }
         } else {
-            keystroke_list = keystroke_list.push(self.modifier_row(held_modifiers));
+            keystroke_list = keystroke_list.push(self.modifier_row(&keystrokes.held_modifiers));
         }
 
         container(keystroke_list)

@@ -2,18 +2,12 @@ use std::collections::HashSet;
 
 use rdev::{Event, EventType, Key};
 
-use crate::keystrokes::{Keystroke, Modifiers};
+use crate::keystrokes::{Keystroke, KeystrokeEvent, Modifiers};
 
 #[derive(Debug, Clone)]
 pub enum GlobalInputEvent {
     Event(Event),
     ListenerFailed(String),
-}
-
-#[derive(Debug)]
-pub enum InputEvent {
-    Keystroke(Keystroke),
-    ModifiersChanged(Modifiers),
 }
 
 /// A stateful normalizer for global input events.
@@ -24,11 +18,11 @@ pub struct InputNormalizer {
 }
 
 impl InputNormalizer {
-    pub fn handle_event(&mut self, event: Event) -> Option<InputEvent> {
+    pub fn handle_event(&mut self, event: Event) -> Option<KeystrokeEvent> {
         match event.event_type {
             EventType::KeyPress(key) => match key.is_modifier() {
                 true => self.update_modifiers(key, true),
-                false => Some(InputEvent::Keystroke(Keystroke {
+                false => Some(KeystrokeEvent::Keystroke(Keystroke {
                     key: key.into(),
                     modifiers: self.modifiers,
                     text: event.into_printable_name(),
@@ -42,7 +36,7 @@ impl InputNormalizer {
         }
     }
 
-    fn update_modifiers(&mut self, key: Key, pressed: bool) -> Option<InputEvent> {
+    fn update_modifiers(&mut self, key: Key, pressed: bool) -> Option<KeystrokeEvent> {
         if pressed {
             self.pressed_modifier_keys.insert(key);
         } else {
@@ -70,7 +64,7 @@ impl InputNormalizer {
 
         let old_modifiers = std::mem::replace(&mut self.modifiers, modifiers);
         if self.modifiers != old_modifiers {
-            Some(InputEvent::ModifiersChanged(self.modifiers))
+            Some(KeystrokeEvent::ModifiersChanged(self.modifiers))
         } else {
             None
         }

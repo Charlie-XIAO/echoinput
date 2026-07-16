@@ -27,7 +27,7 @@ graph TD
         C -- Messages --> D[Iced Update Loop]
         D -- State Update --> E[State Management]
         E -- Render --> F[Compact Overlay Window]
-        D -- Open/Reload --> G[TOML Settings File]
+        D -- Open/Reload --> G[JSON Settings File]
     end
 ```
 
@@ -37,7 +37,7 @@ graph TD
 2. **`rdev`**: For establishing the global keyboard input hook (Linux X11, macOS, Windows).
 3. **`trayinit` / `image`**: For the system tray icon and menu, using the PNG app logo as the tray icon.
 4. **`tokio` / `futures`**: For async channel communication between the hook thread and the `iced` event loop.
-5. **`dirs` / `toml` / `open`**: For locating, parsing, creating, and opening the user-editable settings file.
+5. **`dirs` / `serde_json` / `open`**: For locating, parsing, creating, and opening the user-editable settings file.
 6. **`anyhow` / `log` / `humantime`**: For concise startup/setup error propagation and lightweight file diagnostics.
 7. **Patched `softbuffer`**: A temporary Cargo patch is used so the macOS CoreGraphics tiny-skia presentation path preserves premultiplied alpha for transparent overlays.
 
@@ -52,6 +52,7 @@ graph TD
 - Overlay placement is configurable as top-left, top-right, bottom-left, or bottom-right with independent logical-pixel X/Y margins. The window is not clamped to monitor bounds, so a configured position may intentionally overflow the screen.
 - The app uses iced's daemon API so it can own the click-through overlay while still running global subscriptions.
 - If the overlay window is closed, the daemon exits instead of continuing invisibly.
+- The settings window is a single normal, decorated, opaque window. It is opened or focused from the tray and does not inherit overlay-specific placement, click-through, always-on-top, or taskbar behavior.
 - Windows hides the overlay from the taskbar through winit platform settings. Linux/X11 sets utility, skip-taskbar, skip-pager, and above window-manager hints after creation. macOS uses an accessory activation policy and removes the overlay shadow.
 - On macOS, the tiny-skia renderer requires the patched `softbuffer` CoreGraphics backend because the upstream 0.4.8 backend declares the presented `CGImage` alpha as skipped, which makes transparent pixels show as black.
 - Future cursor-following mouse visualization may need a separate window or a different overlay strategy.
@@ -86,10 +87,11 @@ graph TD
 
 ### D. Settings
 
-- The tray menu can open the TOML settings file in the OS default editor.
-- Settings are persisted as TOML at `dirs::config_dir()/echoinput/settings.toml`. If the file is missing, EchoInput writes an initial commented config with defaults.
-- Settings include `history_limit` plus a `[placement]` section with `anchor`, `margin_x`, and `margin_y`.
-- The tray menu can reload settings from disk. Successful reloads apply immediately, trim excess history rows, and resize/reposition the overlay. Invalid settings are logged and the current runtime settings remain active.
+- The tray opens a settings window with editable history and placement values. Changes are validated and applied only when the user saves.
+- The settings window can open the JSON file in the OS default editor through `Edit in JSON`.
+- Settings are persisted as JSON at `dirs::config_dir()/echoinput/settings.json`. If the file is missing, EchoInput writes default JSON; old TOML files are left untouched.
+- Settings include `history_limit` and nested `placement` values for `anchor`, `margin_x`, and `margin_y`.
+- The tray can reload settings from disk. Successful reloads apply immediately, trim excess history rows, and resize/reposition the overlay. A clean open settings form refreshes from disk; a dirty draft is retained. Invalid settings are logged and the current runtime settings remain active.
 
 ### E. Diagnostics
 
@@ -104,8 +106,8 @@ graph TD
 
 The system tray is the current control surface:
 
-- `Open Settings`: Open the TOML settings file.
-- `Reload Settings`: Reload settings from disk.
+- `Open Settings`: Open or focus the settings window.
+- `Reload Settings`: Reload the JSON settings file from disk.
 - `Open Log`: Open the diagnostics log file.
 - `Quit`: Exit EchoInput.
 
@@ -135,7 +137,7 @@ Completed:
 - Adjacent duplicate bubble compression for repeated keys and shortcuts.
 - Five-second expiration for finalized bubbles.
 - Bottom-left bubble rendering using the dedicated icon font for keyboard glyphs and monospace text for typed text.
-- TOML settings file with persisted history row count and tray-driven reload/open actions.
+- JSON settings file plus a settings window for persisted history and placement values.
 - Lightweight rotating file logging with tray-driven log opening.
 - macOS tiny-skia transparency through a patched `softbuffer` CoreGraphics backend.
 

@@ -18,6 +18,13 @@ pub struct Modifiers {
     pub meta: bool,
 }
 
+/// A normalized input event that affects the keystroke display.
+#[derive(Debug)]
+pub enum KeystrokeEvent {
+    Keystroke(Keystroke),
+    ModifiersChanged(Modifiers),
+}
+
 impl Modifiers {
     pub fn any(&self) -> bool {
         self.control || self.alt || self.shift || self.meta
@@ -280,6 +287,7 @@ impl Keystroke {
 pub struct KeystrokeState {
     pub active: String,
     pub history: VecDeque<KeyBubble>,
+    pub held_modifiers: Modifiers,
     history_limit: usize,
     last_key_at: Option<Instant>,
 }
@@ -289,6 +297,7 @@ impl KeystrokeState {
         Self {
             active: String::new(),
             history: VecDeque::new(),
+            held_modifiers: Modifiers::default(),
             history_limit,
             last_key_at: None,
         }
@@ -299,7 +308,15 @@ impl KeystrokeState {
         self.trim_history();
     }
 
-    pub fn handle_keystroke(&mut self, keystroke: Keystroke, now: Instant) {
+    /// Apply a normalized input event to the display state.
+    pub fn handle(&mut self, event: KeystrokeEvent, now: Instant) {
+        match event {
+            KeystrokeEvent::Keystroke(keystroke) => self.handle_keystroke(keystroke, now),
+            KeystrokeEvent::ModifiersChanged(modifiers) => self.held_modifiers = modifiers,
+        }
+    }
+
+    fn handle_keystroke(&mut self, keystroke: Keystroke, now: Instant) {
         self.finalize_if_inactive(now);
         self.last_key_at = Some(now);
 
