@@ -5,9 +5,8 @@ use trayinit::{Icon, Menu, MenuNode, Tray, TrayEvent, TrayState};
 pub struct TrayItem;
 
 impl TrayItem {
-    pub const OPEN_SETTINGS: &str = "open-settings";
-    pub const RELOAD_SETTINGS: &str = "reload-settings";
-    pub const OPEN_LOG: &str = "open-log";
+    pub const SETTINGS: &str = "settings";
+    pub const LOGS: &str = "logs";
     pub const QUIT: &str = "quit";
 }
 
@@ -27,9 +26,8 @@ pub fn init() -> Result<(Tray, impl iced::futures::Stream<Item = TrayEvent>)> {
         .with_icon(icon)
         .with_tooltip("EchoInput")
         .with_menu(Menu::new([
-            MenuNode::item(TrayItem::OPEN_SETTINGS, "Open Settings"),
-            MenuNode::item(TrayItem::RELOAD_SETTINGS, "Reload Settings"),
-            MenuNode::item(TrayItem::OPEN_LOG, "Open Log"),
+            MenuNode::item(TrayItem::SETTINGS, "Settings"),
+            MenuNode::item(TrayItem::LOGS, "Logs"),
             MenuNode::separator(),
             MenuNode::item(TrayItem::QUIT, "Quit"),
         ]));

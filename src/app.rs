@@ -7,7 +7,7 @@ use trayinit::{Tray, TrayEvent};
 
 use crate::input::{GlobalInputEvent, InputNormalizer};
 use crate::keystrokes::KeystrokeState;
-use crate::settings::{Settings, SettingsEditor, SettingsEditorAction, SettingsMessage};
+use crate::settings::{Settings, SettingsAction, SettingsForm, SettingsMessage};
 use crate::tray::TrayItem;
 use crate::ui::keystroke::KeystrokeView;
 use crate::ui::settings::SettingsView;
@@ -74,7 +74,7 @@ struct KeystrokeWindow {
 
 struct SettingsWindow {
     id: window::Id,
-    editor: SettingsEditor,
+    form: SettingsForm,
     view: SettingsView,
 }
 
@@ -219,23 +219,8 @@ impl App {
                     return Task::none();
                 };
                 match item_id.as_str() {
-                    TrayItem::OPEN_SETTINGS => self.open_settings_window(),
-                    TrayItem::RELOAD_SETTINGS => match crate::settings::load() {
-                        Ok(settings) => {
-                            log::info!("settings reloaded");
-                            if let Some(settings_window) = &mut self.settings_window
-                                && !settings_window.editor.is_dirty()
-                            {
-                                settings_window.editor.reset(&settings);
-                            }
-                            self.apply_settings(settings)
-                        },
-                        Err(e) => {
-                            log::warn!("failed to reload settings: {e:#}");
-                            Task::none()
-                        },
-                    },
-                    TrayItem::OPEN_LOG => {
+                    TrayItem::SETTINGS => self.open_settings_window(),
+                    TrayItem::LOGS => {
                         if let Err(e) = crate::logging::open() {
                             log::warn!("failed to open log file: {e:#}");
                         }
@@ -272,7 +257,7 @@ impl App {
         assert_eq!(window, settings_window.id, "unexpected window id: {window}");
         settings_window
             .view
-            .view(&settings_window.editor)
+            .view(&settings_window.form)
             .map(Message::Settings)
     }
 
@@ -316,7 +301,7 @@ impl App {
         let (id, open_settings_window) = window::open(settings_window_settings);
         self.settings_window = Some(SettingsWindow {
             id,
-            editor: SettingsEditor::new(&self.settings),
+            form: SettingsForm::new(&self.settings),
             view: SettingsView::default(),
         });
         open_settings_window.map(Message::WindowOpened)
@@ -327,11 +312,11 @@ impl App {
             .settings_window
             .as_mut()
             .expect("settings message without settings window")
-            .editor
+            .form
             .update(message);
 
         match action {
-            Some(SettingsEditorAction::Save(settings)) => {
+            Some(SettingsAction::Save(settings)) => {
                 if let Err(e) = crate::settings::save(&settings) {
                     log::error!("failed to save settings: {e:#}");
                     return Task::none();
@@ -340,12 +325,11 @@ impl App {
                 self.settings_window
                     .as_mut()
                     .expect("settings message without settings window")
-                    .editor
-                    .reset(&settings);
+                    .form = SettingsForm::new(&settings);
 
                 self.apply_settings(settings)
             },
-            Some(SettingsEditorAction::EditJson) => {
+            Some(SettingsAction::EditJson) => {
                 if let Err(e) = crate::settings::open() {
                     log::error!("failed to open settings file: {e:#}");
                 }

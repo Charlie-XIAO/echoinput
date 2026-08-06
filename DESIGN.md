@@ -10,7 +10,7 @@
 - **Mouse Event Visualizer**: Planned, but not implemented yet.
 - **Always-on-Top & Transparent Overlay**: The app runs borderless, transparent, and sits on top of all other windows, ignoring clicks (mouse passthrough enabled) so it does not interfere with the user's work.
 - **Global Input Hook**: Since it sits in the background, it captures input events globally (even when not focused) using a dedicated worker thread.
-- **System Tray Controls**: The app exposes settings, diagnostics, reload, and quit actions through a tray menu.
+- **System Tray Controls**: The app exposes settings, diagnostics, and quit actions through a tray menu.
 
 ---
 
@@ -27,7 +27,7 @@ graph TD
         C -- Messages --> D[Iced Update Loop]
         D -- State Update --> E[State Management]
         E -- Render --> F[Compact Overlay Window]
-        D -- Open/Reload --> G[JSON Settings File]
+        D -- Read/Write --> G[JSON Settings File]
     end
 ```
 
@@ -91,7 +91,7 @@ graph TD
 - The settings window can open the JSON file in the OS default editor through `Edit in JSON`.
 - Settings are persisted as JSON at `dirs::config_dir()/echoinput/settings.json`. If the file is missing, EchoInput writes default JSON; old TOML files are left untouched.
 - Settings include `history_limit` and nested `placement` values for `anchor`, `margin_x`, and `margin_y`.
-- The tray can reload settings from disk. Successful reloads apply immediately, trim excess history rows, and resize/reposition the overlay. A clean open settings form refreshes from disk; a dirty draft is retained. Invalid settings are logged and the current runtime settings remain active.
+- The settings file is created as an empty JSON object when absent. Invalid settings are logged during startup and the app runs with in-memory defaults.
 
 ### E. Diagnostics
 
@@ -106,9 +106,8 @@ graph TD
 
 The system tray is the current control surface:
 
-- `Open Settings`: Open or focus the settings window.
-- `Reload Settings`: Reload the JSON settings file from disk.
-- `Open Log`: Open the diagnostics log file.
+- `Settings`: Open or focus the settings window.
+- `Logs`: Open the diagnostics log file.
 - `Quit`: Exit EchoInput.
 
 ---
@@ -132,7 +131,7 @@ Completed:
 - Always-on-top borderless window configuration.
 - Mouse passthrough enablement after window creation.
 - Global input hook subscription through `rdev`.
-- System tray menu with settings, reload, log, and quit actions.
+- System tray menu with settings, log, and quit actions.
 - Keystroke grouping with active typing rows, delimiter rows, shortcut rows, explicit Backspace display, and held modifier indicators.
 - Adjacent duplicate bubble compression for repeated keys and shortcuts.
 - Five-second expiration for finalized bubbles.

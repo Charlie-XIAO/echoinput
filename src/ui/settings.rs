@@ -1,7 +1,7 @@
 use iced::widget::{Column, Row, button, container, pick_list, rule, scrollable, text, text_input};
 use iced::{Background, Element, Length, Theme, alignment};
 
-use crate::settings::{PlacementAnchor, SettingsEditor, SettingsMessage};
+use crate::settings::{PlacementAnchor, SettingsForm, SettingsMessage};
 use crate::ui::style::{self, DesignTokens};
 
 const CONTROL_WIDTH: f32 = 140.0;
@@ -29,29 +29,28 @@ impl Default for SettingsView {
 }
 
 impl SettingsView {
-    pub fn view<'a>(&'a self, editor: &'a SettingsEditor) -> Element<'a, SettingsMessage> {
-        let draft = editor.draft();
+    pub fn view<'a>(&'a self, form: &'a SettingsForm) -> Element<'a, SettingsMessage> {
         let history_limit = self.number_input(
-            &draft.history_limit,
-            draft.history_limit_is_valid(),
+            &form.history_limit,
+            form.history_limit_is_valid(),
             SettingsMessage::HistoryLimitChanged,
         );
-        let anchor = pick_list(ANCHORS, Some(draft.anchor), SettingsMessage::AnchorChanged)
+        let anchor = pick_list(ANCHORS, Some(form.anchor), SettingsMessage::AnchorChanged)
             .width(CONTROL_WIDTH)
             .padding([CONTROL_PADDING, 10.0])
             .text_size(14)
             .style(move |_, status| style::pick_list(self.tokens, status));
         let margin_x = self.number_input(
-            &draft.margin_x,
-            draft.margin_x_is_valid(),
+            &form.margin_x,
+            form.margin_x_is_valid(),
             SettingsMessage::MarginXChanged,
         );
         let margin_y = self.number_input(
-            &draft.margin_y,
-            draft.margin_y_is_valid(),
+            &form.margin_y,
+            form.margin_y_is_valid(),
             SettingsMessage::MarginYChanged,
         );
-        let valid = draft.settings().is_some();
+        let valid = form.settings().is_some();
 
         let content = Column::new()
             .spacing(16)

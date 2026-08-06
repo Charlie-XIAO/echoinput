@@ -74,7 +74,7 @@ impl std::fmt::Display for PlacementAnchor {
 }
 
 #[derive(Debug)]
-pub struct SettingsDraft {
+pub struct SettingsForm {
     pub history_limit: String,
     pub anchor: PlacementAnchor,
     pub margin_x: String,
@@ -92,66 +92,13 @@ pub enum SettingsMessage {
     EditJson,
 }
 
-/// A side effect requested by a settings editor interaction.
-pub enum SettingsEditorAction {
+/// A side effect requested by a settings form interaction.
+pub enum SettingsAction {
     Save(Settings),
     EditJson,
 }
 
-/// The unsaved settings state for an open settings window.
-#[derive(Debug)]
-pub struct SettingsEditor {
-    draft: SettingsDraft,
-    dirty: bool,
-}
-
-impl SettingsEditor {
-    pub fn new(settings: &Settings) -> Self {
-        Self {
-            draft: SettingsDraft::new(settings),
-            dirty: false,
-        }
-    }
-
-    pub fn draft(&self) -> &SettingsDraft {
-        &self.draft
-    }
-
-    pub fn is_dirty(&self) -> bool {
-        self.dirty
-    }
-
-    pub fn reset(&mut self, settings: &Settings) {
-        self.draft = SettingsDraft::new(settings);
-        self.dirty = false;
-    }
-
-    pub fn update(&mut self, message: SettingsMessage) -> Option<SettingsEditorAction> {
-        match message {
-            SettingsMessage::HistoryLimitChanged(value) => {
-                self.draft.history_limit = value;
-            },
-            SettingsMessage::AnchorChanged(value) => {
-                self.draft.anchor = value;
-            },
-            SettingsMessage::MarginXChanged(value) => {
-                self.draft.margin_x = value;
-            },
-            SettingsMessage::MarginYChanged(value) => {
-                self.draft.margin_y = value;
-            },
-            SettingsMessage::Save => {
-                return self.draft.settings().map(SettingsEditorAction::Save);
-            },
-            SettingsMessage::EditJson => return Some(SettingsEditorAction::EditJson),
-        }
-
-        self.dirty = true;
-        None
-    }
-}
-
-impl SettingsDraft {
+impl SettingsForm {
     pub fn new(settings: &Settings) -> Self {
         Self {
             history_limit: settings.history_limit.to_string(),
@@ -159,6 +106,18 @@ impl SettingsDraft {
             margin_x: settings.placement.margin_x.to_string(),
             margin_y: settings.placement.margin_y.to_string(),
         }
+    }
+
+    pub fn update(&mut self, message: SettingsMessage) -> Option<SettingsAction> {
+        match message {
+            SettingsMessage::HistoryLimitChanged(value) => self.history_limit = value,
+            SettingsMessage::AnchorChanged(value) => self.anchor = value,
+            SettingsMessage::MarginXChanged(value) => self.margin_x = value,
+            SettingsMessage::MarginYChanged(value) => self.margin_y = value,
+            SettingsMessage::Save => return self.settings().map(SettingsAction::Save),
+            SettingsMessage::EditJson => return Some(SettingsAction::EditJson),
+        }
+        None
     }
 
     pub fn settings(&self) -> Option<Settings> {
@@ -235,10 +194,10 @@ fn ensure_settings_file() -> Result<PathBuf> {
         .with_context(|| format!("failed to create settings directory: {}", dir.display()))?;
 
     let path = dir.join("settings.json");
-    if path.exists() {
-        return Ok(path);
+    if !path.exists() {
+        std::fs::write(&path, "{}")
+            .with_context(|| format!("failed to create empty settings file: {}", path.display()))?;
     }
-
     Ok(path)
 }
 
