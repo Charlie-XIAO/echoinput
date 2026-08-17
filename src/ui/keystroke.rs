@@ -13,7 +13,7 @@ use crate::ui::style::{self, DesignTokens, ICON_FONT};
 
 const MONOSPACE_CHAR_WIDTH_RATIO: f32 = 0.62;
 const REPEAT_COUNT_CHAR_BUDGET: f32 = 3.0;
-const MODIFIER_ROW_MAX_ITEMS: f32 = 5.0;
+const MODIFIER_INDICATOR_MAX_ITEMS: f32 = 5.0;
 
 #[derive(Debug)]
 pub struct KeystrokeView {
@@ -52,7 +52,7 @@ impl Default for KeystrokeView {
 
 impl KeystrokeView {
     pub fn content_size(&self, history_limit: usize, visibility: KeystrokeVisibility) -> Size {
-        if !visibility.any() && !visibility.modifier_row {
+        if !visibility.any() && !visibility.modifier_indicators {
             return Size::new(1.0, 1.0); // Nothing to show, keep minimal window
         }
         Size::new(
@@ -64,8 +64,8 @@ impl KeystrokeView {
     fn stack_width(&self, visibility: KeystrokeVisibility) -> f32 {
         let event_width = visibility.any().then(|| self.event_max_width());
         let modifier_width = visibility
-            .modifier_row
-            .then(|| self.modifier_row_max_width());
+            .modifier_indicators
+            .then(|| self.modifier_indicators_max_width());
         event_width
             .into_iter()
             .chain(modifier_width)
@@ -81,24 +81,25 @@ impl KeystrokeView {
         (text_width + repeat_count_width + padding + self.width_slack).ceil()
     }
 
-    fn modifier_row_max_width(&self) -> f32 {
+    fn modifier_indicators_max_width(&self) -> f32 {
         let item_width = self.modifier_font_size + 2.0 * self.modifier_padding_horizontal;
-        let spacing = (self.row_spacing + 2.0) * (MODIFIER_ROW_MAX_ITEMS - 1.0);
+        let spacing = (self.row_spacing + 2.0) * (MODIFIER_INDICATOR_MAX_ITEMS - 1.0);
 
-        (item_width * MODIFIER_ROW_MAX_ITEMS + spacing).ceil()
+        (item_width * MODIFIER_INDICATOR_MAX_ITEMS + spacing).ceil()
     }
 
     fn stack_height(&self, history_limit: usize, visibility: KeystrokeVisibility) -> f32 {
         let event_row_height = self.row_height(self.event_font_size, self.event_padding_vertical);
-        let modifier_row_height = self
+        let modifier_indicators_height = self
             .row_height(self.modifier_font_size, self.modifier_padding_vertical)
             + self.modifier_top_padding;
         let event_rows = usize::from(visibility.any()) * history_limit;
-        let modifier_rows = usize::from(visibility.modifier_row);
-        let spacing = self.column_spacing * (event_rows + modifier_rows).saturating_sub(1) as f32;
+        let modifier_indicators = usize::from(visibility.modifier_indicators);
+        let spacing =
+            self.column_spacing * (event_rows + modifier_indicators).saturating_sub(1) as f32;
 
         (event_row_height * event_rows as f32
-            + modifier_row_height * modifier_rows as f32
+            + modifier_indicators_height * modifier_indicators as f32
             + spacing)
             .ceil()
     }
@@ -129,8 +130,9 @@ impl KeystrokeView {
             .spacing(self.column_spacing)
             .align_x(horizontal_alignment);
 
-        if placement.anchor.is_top() && visibility.modifier_row {
-            keystroke_list = keystroke_list.push(self.modifier_row(&keystrokes.held_modifiers));
+        if placement.anchor.is_top() && visibility.modifier_indicators {
+            keystroke_list =
+                keystroke_list.push(self.modifier_indicators(&keystrokes.held_modifiers));
         } else {
             for bubble in keystrokes.history.iter() {
                 keystroke_list = keystroke_list.push(self.history_row(bubble));
@@ -150,8 +152,9 @@ impl KeystrokeView {
             for bubble in keystrokes.history.iter().rev() {
                 keystroke_list = keystroke_list.push(self.history_row(bubble));
             }
-        } else if visibility.modifier_row {
-            keystroke_list = keystroke_list.push(self.modifier_row(&keystrokes.held_modifiers));
+        } else if visibility.modifier_indicators {
+            keystroke_list =
+                keystroke_list.push(self.modifier_indicators(&keystrokes.held_modifiers));
         }
 
         container(keystroke_list)
@@ -243,7 +246,10 @@ impl KeystrokeView {
         }
     }
 
-    fn modifier_row<'a, Message: 'a>(&'a self, modifiers: &'a Modifiers) -> Element<'a, Message> {
+    fn modifier_indicators<'a, Message: 'a>(
+        &'a self,
+        modifiers: &'a Modifiers,
+    ) -> Element<'a, Message> {
         Row::new()
             .spacing(self.row_spacing + 2.0)
             .padding(padding::top(self.modifier_top_padding))

@@ -299,7 +299,7 @@ pub struct KeystrokeVisibility {
     pub typing: bool,
     pub shortcuts: bool,
     pub special_keys: bool,
-    pub modifier_row: bool,
+    pub modifier_indicators: bool,
 }
 
 impl Default for KeystrokeVisibility {
@@ -308,7 +308,7 @@ impl Default for KeystrokeVisibility {
             typing: true,
             shortcuts: true,
             special_keys: true,
-            modifier_row: true,
+            modifier_indicators: true,
         }
     }
 }

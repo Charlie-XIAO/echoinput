@@ -93,7 +93,7 @@ pub enum SettingsMessage {
     TypingVisibilityChanged(bool),
     ShortcutsVisibilityChanged(bool),
     SpecialKeysVisibilityChanged(bool),
-    ModifierRowVisibilityChanged(bool),
+    ModifierIndicatorsVisibilityChanged(bool),
     AnchorChanged(PlacementAnchor),
     MarginXChanged(String),
     MarginYChanged(String),
@@ -126,8 +126,8 @@ impl SettingsForm {
             SettingsMessage::SpecialKeysVisibilityChanged(value) => {
                 self.visibility.special_keys = value
             },
-            SettingsMessage::ModifierRowVisibilityChanged(value) => {
-                self.visibility.modifier_row = value
+            SettingsMessage::ModifierIndicatorsVisibilityChanged(value) => {
+                self.visibility.modifier_indicators = value
             },
             SettingsMessage::AnchorChanged(value) => self.anchor = value,
             SettingsMessage::MarginXChanged(value) => self.margin_x = value,

@@ -64,9 +64,9 @@ impl SettingsView {
             form.visibility.special_keys,
             SettingsMessage::SpecialKeysVisibilityChanged,
         );
-        let modifier_row_visibility = self.checkbox(
-            form.visibility.modifier_row,
-            SettingsMessage::ModifierRowVisibilityChanged,
+        let modifier_indicators_visibility = self.checkbox(
+            form.visibility.modifier_indicators,
+            SettingsMessage::ModifierIndicatorsVisibilityChanged,
         );
         let valid = form.settings().is_some();
 
@@ -106,9 +106,9 @@ impl SettingsView {
                     ))
                     .push(rule::horizontal(1))
                     .push(self.setting_row(
-                        "Modifier row",
-                        "Show currently held modifiers.",
-                        modifier_row_visibility,
+                        "Modifier indicators",
+                        "Show indicators that highlight when modifiers are held.",
+                        modifier_indicators_visibility,
                     )),
             )
             .push(
