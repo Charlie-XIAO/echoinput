@@ -71,7 +71,7 @@ graph TD
 - **Modifiers & Shortcut commands**:
   - Keys combined with command-style modifiers (Control, Alt/Option, or Super/Command) immediately finalize the active typing bubble and display as one shortcut row.
   - Shortcut rows render each modifier/key as a separate bubble in the same row, e.g. `Super+Shift+S` appears as three adjacent bubbles.
-  - A subtle modifier row is always visible at the aligned vertical edge and highlights held modifiers. Newer keystrokes remain adjacent to it.
+  - An optional modifier row highlights held modifiers at the aligned vertical edge. Newer keystrokes remain adjacent to it when enabled.
 - **Duplicate Compression**: Adjacent finalized key-only bubbles with the same content and kind are collapsed into one history entry with a small inline repeat count such as `×2` or `×3`. Text bubbles are not compressed.
 - **Expiration Order**: History expiration times are monotonic because new bubbles append to the back and only the latest duplicate bubble can be refreshed. Expiration pruning only removes from the front of the queue.
 
@@ -87,10 +87,10 @@ graph TD
 
 ### D. Settings
 
-- The tray opens a settings window with editable history and placement values. Changes are validated and applied only when the user saves.
+- The tray opens a settings window with editable history, visibility, and placement values. Changes are validated and applied only when the user saves.
 - The settings window can open the JSON file in the OS default editor through `Edit in JSON`.
-- Settings are persisted as JSON at `dirs::config_dir()/echoinput/settings.json`. If the file is missing, EchoInput writes default JSON; old TOML files are left untouched.
-- Settings include `history_limit` and nested `placement` values for `anchor`, `margin_x`, and `margin_y`.
+- Settings are persisted as JSON at `dirs::config_dir()/echoinput/settings.json`. Old TOML files are left untouched.
+- Settings include `history_limit`, visibility selections for typing, shortcuts, special keys, and the modifier row, plus nested `placement` values for `anchor`, `margin_x`, and `margin_y`. Disabled event categories are not retained in history. When every display element is disabled, the transparent overlay shrinks to 1x1 logical pixels.
 - The settings file is created as an empty JSON object when absent. Invalid settings are logged during startup and the app runs with in-memory defaults.
 
 ### E. Diagnostics

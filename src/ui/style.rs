@@ -1,4 +1,7 @@
-use iced::widget::{button, pick_list as pick_list_widget, text_input as text_input_widget};
+use iced::widget::{
+    button, checkbox as checkbox_widget, pick_list as pick_list_widget,
+    text_input as text_input_widget,
+};
 use iced::{Background, Border, Color, Font, Shadow, border};
 
 pub const ICON_FONT: Font = Font::with_name("echoinput-icons");
@@ -116,6 +119,36 @@ pub fn pick_list(
         handle_color: colors.muted_fg,
         background: Background::Color(colors.card),
         border: border(border_color, tokens.border_width, tokens.radius),
+    }
+}
+
+pub fn checkbox(tokens: DesignTokens, status: checkbox_widget::Status) -> checkbox_widget::Style {
+    let colors = tokens.colors;
+    let (checked, hovered) = match status {
+        checkbox_widget::Status::Active { is_checked } => (is_checked, false),
+        checkbox_widget::Status::Hovered { is_checked } => (is_checked, true),
+        checkbox_widget::Status::Disabled { is_checked } => (is_checked, false),
+    };
+    let background = if checked {
+        if hovered {
+            with_alpha(colors.primary, 0.85)
+        } else {
+            colors.primary
+        }
+    } else {
+        colors.card
+    };
+    let border_color = if checked {
+        colors.primary
+    } else {
+        colors.input
+    };
+
+    checkbox_widget::Style {
+        background: Background::Color(background),
+        icon_color: colors.primary_container,
+        border: border(border_color, tokens.border_width, tokens.radius),
+        text_color: Some(colors.card_fg),
     }
 }
 

@@ -5,7 +5,8 @@ use iced::{Background, Color, Element, Font, Size, Theme, alignment, padding};
 
 use crate::icons::Icon;
 use crate::keystrokes::{
-    BubbleKind, BubblePart, KeyBubble, KeyLabel, KeystrokeState, MAX_ACTIVE_TEXT_LEN, Modifiers,
+    BubbleKind, BubblePart, KeyBubble, KeyLabel, KeystrokeState, KeystrokeVisibility,
+    MAX_ACTIVE_TEXT_LEN, Modifiers,
 };
 use crate::settings::Placement;
 use crate::ui::style::{self, DesignTokens, ICON_FONT};
@@ -50,12 +51,25 @@ impl Default for KeystrokeView {
 }
 
 impl KeystrokeView {
-    pub fn content_size(&self, history_limit: usize) -> Size {
-        Size::new(self.stack_width(), self.stack_height(history_limit))
+    pub fn content_size(&self, history_limit: usize, visibility: KeystrokeVisibility) -> Size {
+        if !visibility.any() && !visibility.modifier_row {
+            return Size::new(1.0, 1.0); // Nothing to show, keep minimal window
+        }
+        Size::new(
+            self.stack_width(visibility),
+            self.stack_height(history_limit, visibility),
+        )
     }
 
-    fn stack_width(&self) -> f32 {
-        self.event_max_width().max(self.modifier_row_max_width())
+    fn stack_width(&self, visibility: KeystrokeVisibility) -> f32 {
+        let event_width = visibility.any().then(|| self.event_max_width());
+        let modifier_width = visibility
+            .modifier_row
+            .then(|| self.modifier_row_max_width());
+        event_width
+            .into_iter()
+            .chain(modifier_width)
+            .fold(0.0, f32::max)
     }
 
     fn event_max_width(&self) -> f32 {
@@ -74,15 +88,19 @@ impl KeystrokeView {
         (item_width * MODIFIER_ROW_MAX_ITEMS + spacing).ceil()
     }
 
-    fn stack_height(&self, history_limit: usize) -> f32 {
+    fn stack_height(&self, history_limit: usize, visibility: KeystrokeVisibility) -> f32 {
         let event_row_height = self.row_height(self.event_font_size, self.event_padding_vertical);
         let modifier_row_height = self
             .row_height(self.modifier_font_size, self.modifier_padding_vertical)
             + self.modifier_top_padding;
+        let event_rows = usize::from(visibility.any()) * history_limit;
+        let modifier_rows = usize::from(visibility.modifier_row);
+        let spacing = self.column_spacing * (event_rows + modifier_rows).saturating_sub(1) as f32;
 
-        let spacing = self.column_spacing * (history_limit as f32);
-
-        (event_row_height * (history_limit as f32) + modifier_row_height + spacing).ceil()
+        (event_row_height * event_rows as f32
+            + modifier_row_height * modifier_rows as f32
+            + spacing)
+            .ceil()
     }
 
     fn row_height(&self, font_size: f32, vertical_padding: f32) -> f32 {
@@ -93,6 +111,7 @@ impl KeystrokeView {
         &'a self,
         keystrokes: &'a KeystrokeState,
         placement: &'a Placement,
+        visibility: KeystrokeVisibility,
     ) -> Element<'a, Message> {
         let horizontal_alignment = if placement.anchor.is_right() {
             alignment::Horizontal::Right
@@ -110,7 +129,7 @@ impl KeystrokeView {
             .spacing(self.column_spacing)
             .align_x(horizontal_alignment);
 
-        if placement.anchor.is_top() {
+        if placement.anchor.is_top() && visibility.modifier_row {
             keystroke_list = keystroke_list.push(self.modifier_row(&keystrokes.held_modifiers));
         } else {
             for bubble in keystrokes.history.iter() {
@@ -131,7 +150,7 @@ impl KeystrokeView {
             for bubble in keystrokes.history.iter().rev() {
                 keystroke_list = keystroke_list.push(self.history_row(bubble));
             }
-        } else {
+        } else if visibility.modifier_row {
             keystroke_list = keystroke_list.push(self.modifier_row(&keystrokes.held_modifiers));
         }
 

@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::keystrokes::KeystrokeVisibility;
+
 const MIN_HISTORY_LIMIT: usize = 1;
 const MAX_HISTORY_LIMIT: usize = 10;
 
@@ -13,6 +15,7 @@ const MAX_HISTORY_LIMIT: usize = 10;
 pub struct Settings {
     #[serde(deserialize_with = "deserialize_history_limit")]
     pub history_limit: usize,
+    pub visibility: KeystrokeVisibility,
     pub placement: Placement,
 }
 
@@ -20,6 +23,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             history_limit: 5,
+            visibility: KeystrokeVisibility::default(),
             placement: Placement::default(),
         }
     }
@@ -76,6 +80,7 @@ impl std::fmt::Display for PlacementAnchor {
 #[derive(Debug)]
 pub struct SettingsForm {
     pub history_limit: String,
+    pub visibility: KeystrokeVisibility,
     pub anchor: PlacementAnchor,
     pub margin_x: String,
     pub margin_y: String,
@@ -85,6 +90,10 @@ pub struct SettingsForm {
 #[derive(Debug, Clone)]
 pub enum SettingsMessage {
     HistoryLimitChanged(String),
+    TypingVisibilityChanged(bool),
+    ShortcutsVisibilityChanged(bool),
+    SpecialKeysVisibilityChanged(bool),
+    ModifierRowVisibilityChanged(bool),
     AnchorChanged(PlacementAnchor),
     MarginXChanged(String),
     MarginYChanged(String),
@@ -102,6 +111,7 @@ impl SettingsForm {
     pub fn new(settings: &Settings) -> Self {
         Self {
             history_limit: settings.history_limit.to_string(),
+            visibility: settings.visibility,
             anchor: settings.placement.anchor,
             margin_x: settings.placement.margin_x.to_string(),
             margin_y: settings.placement.margin_y.to_string(),
@@ -111,6 +121,14 @@ impl SettingsForm {
     pub fn update(&mut self, message: SettingsMessage) -> Option<SettingsAction> {
         match message {
             SettingsMessage::HistoryLimitChanged(value) => self.history_limit = value,
+            SettingsMessage::TypingVisibilityChanged(value) => self.visibility.typing = value,
+            SettingsMessage::ShortcutsVisibilityChanged(value) => self.visibility.shortcuts = value,
+            SettingsMessage::SpecialKeysVisibilityChanged(value) => {
+                self.visibility.special_keys = value
+            },
+            SettingsMessage::ModifierRowVisibilityChanged(value) => {
+                self.visibility.modifier_row = value
+            },
             SettingsMessage::AnchorChanged(value) => self.anchor = value,
             SettingsMessage::MarginXChanged(value) => self.margin_x = value,
             SettingsMessage::MarginYChanged(value) => self.margin_y = value,
@@ -128,6 +146,7 @@ impl SettingsForm {
 
         Some(Settings {
             history_limit: self.history_limit.parse().ok()?,
+            visibility: self.visibility,
             placement: Placement {
                 anchor: self.anchor,
                 margin_x: self.margin_x.parse().ok()?,

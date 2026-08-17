@@ -1,4 +1,6 @@
-use iced::widget::{Column, Row, button, container, pick_list, rule, scrollable, text, text_input};
+use iced::widget::{
+    Column, Row, button, checkbox, container, pick_list, rule, scrollable, text, text_input,
+};
 use iced::{Background, Element, Length, Theme, alignment};
 
 use crate::settings::{PlacementAnchor, SettingsForm, SettingsMessage};
@@ -50,6 +52,22 @@ impl SettingsView {
             form.margin_y_is_valid(),
             SettingsMessage::MarginYChanged,
         );
+        let typing_visibility = self.checkbox(
+            form.visibility.typing,
+            SettingsMessage::TypingVisibilityChanged,
+        );
+        let shortcuts_visibility = self.checkbox(
+            form.visibility.shortcuts,
+            SettingsMessage::ShortcutsVisibilityChanged,
+        );
+        let special_keys_visibility = self.checkbox(
+            form.visibility.special_keys,
+            SettingsMessage::SpecialKeysVisibilityChanged,
+        );
+        let modifier_row_visibility = self.checkbox(
+            form.visibility.modifier_row,
+            SettingsMessage::ModifierRowVisibilityChanged,
+        );
         let valid = form.settings().is_some();
 
         let content = Column::new()
@@ -67,6 +85,30 @@ impl SettingsView {
                         "History limit",
                         "Maximum visible keystroke rows, including active typing.",
                         history_limit,
+                    )),
+            )
+            .push(
+                Column::new()
+                    .spacing(8)
+                    .push(self.section_title("Display"))
+                    .push(self.setting_row("Typing", "Show normal typing.", typing_visibility))
+                    .push(rule::horizontal(1))
+                    .push(self.setting_row(
+                        "Shortcuts",
+                        "Show chords containing modifier keys (Control, Alt/Option, Command).",
+                        shortcuts_visibility,
+                    ))
+                    .push(rule::horizontal(1))
+                    .push(self.setting_row(
+                        "Special keys",
+                        "Show navigation, function, and other non-text keys.",
+                        special_keys_visibility,
+                    ))
+                    .push(rule::horizontal(1))
+                    .push(self.setting_row(
+                        "Modifier row",
+                        "Show currently held modifiers.",
+                        modifier_row_visibility,
                     )),
             )
             .push(
@@ -184,6 +226,17 @@ impl SettingsView {
             .size(14)
             .align_x(alignment::Horizontal::Right)
             .style(move |_, status| style::text_input(self.tokens, status, !valid))
+            .into()
+    }
+
+    fn checkbox<'a>(
+        &'a self,
+        checked: bool,
+        on_toggle: fn(bool) -> SettingsMessage,
+    ) -> Element<'a, SettingsMessage> {
+        checkbox(checked)
+            .on_toggle(on_toggle)
+            .style(move |_, status| style::checkbox(self.tokens, status))
             .into()
     }
 }

@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
 use rdev::Key;
+use serde::{Deserialize, Serialize};
 
 use crate::icons::Icon;
 
@@ -283,22 +284,67 @@ impl Keystroke {
     }
 }
 
+/// The visual category of a keystroke bubble.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BubbleKind {
+    Typing,
+    Shortcut,
+    Special,
+}
+
+/// Selects which overlay elements are shown.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct KeystrokeVisibility {
+    pub typing: bool,
+    pub shortcuts: bool,
+    pub special_keys: bool,
+    pub modifier_row: bool,
+}
+
+impl Default for KeystrokeVisibility {
+    fn default() -> Self {
+        Self {
+            typing: true,
+            shortcuts: true,
+            special_keys: true,
+            modifier_row: true,
+        }
+    }
+}
+
+impl KeystrokeVisibility {
+    pub fn shows(self, kind: BubbleKind) -> bool {
+        match kind {
+            BubbleKind::Typing => self.typing,
+            BubbleKind::Shortcut => self.shortcuts,
+            BubbleKind::Special => self.special_keys,
+        }
+    }
+
+    pub fn any(self) -> bool {
+        self.typing || self.shortcuts || self.special_keys
+    }
+}
+
 #[derive(Debug)]
 pub struct KeystrokeState {
     pub active: String,
     pub history: VecDeque<KeyBubble>,
     pub held_modifiers: Modifiers,
     history_limit: usize,
+    visibility: KeystrokeVisibility,
     last_key_at: Option<Instant>,
 }
 
 impl KeystrokeState {
-    pub fn new(history_limit: usize) -> Self {
+    pub fn new(history_limit: usize, visibility: KeystrokeVisibility) -> Self {
         Self {
             active: String::new(),
             history: VecDeque::new(),
             held_modifiers: Modifiers::default(),
             history_limit,
+            visibility,
             last_key_at: None,
         }
     }
@@ -306,6 +352,19 @@ impl KeystrokeState {
     pub fn set_history_limit(&mut self, history_limit: usize) {
         self.history_limit = history_limit;
         self.trim_history();
+    }
+
+    pub fn set_visibility(&mut self, visibility: KeystrokeVisibility) {
+        if self.visibility == visibility {
+            return;
+        }
+
+        self.visibility = visibility;
+        if !visibility.typing {
+            self.active.clear();
+            self.last_key_at = None;
+        }
+        self.history.retain(|bubble| visibility.shows(bubble.kind));
     }
 
     /// Apply a normalized input event to the display state.
@@ -352,7 +411,9 @@ impl KeystrokeState {
             return;
         }
 
-        if let Some(text) = &keystroke.text {
+        if self.visibility.typing
+            && let Some(text) = &keystroke.text
+        {
             for ch in text.chars() {
                 if self.active.len() >= MAX_ACTIVE_TEXT_LEN {
                     self.finalize_active(now);
@@ -408,6 +469,10 @@ impl KeystrokeState {
     /// key-only, they will be merged into a single row with an incremented
     /// repeat count.
     fn push_history(&mut self, parts: Vec<BubblePart>, kind: BubbleKind, now: Instant) {
+        if !self.visibility.shows(kind) {
+            return;
+        }
+
         if parts.iter().all(|part| matches!(part, BubblePart::Key(_)))
             && let Some(last) = self.history.back_mut()
             && last.kind == kind
@@ -453,12 +518,4 @@ pub struct KeyBubble {
 pub enum BubblePart {
     Text(String),
     Key(Keystroke),
-}
-
-/// The visual category for a finalized keystroke row.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BubbleKind {
-    Typing,
-    Shortcut,
-    Special,
 }

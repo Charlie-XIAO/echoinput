@@ -93,7 +93,7 @@ impl App {
         };
 
         let keystroke_view = KeystrokeView::default();
-        let keystrokes = KeystrokeState::new(settings.history_limit);
+        let keystrokes = KeystrokeState::new(settings.history_limit, settings.visibility);
 
         let mut tasks = Vec::new();
 
@@ -109,7 +109,7 @@ impl App {
         };
 
         let keystroke_window_settings = crate::window::keystroke::settings(
-            keystroke_view.content_size(settings.history_limit),
+            keystroke_view.content_size(settings.history_limit, settings.visibility),
             &settings.placement,
         );
         let (keystroke_window_id, open_keystroke_window) = window::open(keystroke_window_settings);
@@ -178,7 +178,7 @@ impl App {
                 let size = self
                     .keystroke_window
                     .view
-                    .content_size(self.settings.history_limit);
+                    .content_size(self.settings.history_limit, self.settings.visibility);
                 let position = crate::window::keystroke::position(
                     size,
                     monitor_size,
@@ -244,10 +244,11 @@ impl App {
 
     fn view(&self, window: window::Id) -> Element<'_, Message> {
         if window == self.keystroke_window.id {
-            return self
-                .keystroke_window
-                .view
-                .view(&self.keystroke_window.state, &self.settings.placement);
+            return self.keystroke_window.view.view(
+                &self.keystroke_window.state,
+                &self.settings.placement,
+                self.settings.visibility,
+            );
         }
 
         let settings_window = self
@@ -272,6 +273,7 @@ impl App {
     fn apply_settings(&mut self, settings: Settings) -> Task<Message> {
         let old_settings = std::mem::replace(&mut self.settings, settings);
         let history_limit_changed = self.settings.history_limit != old_settings.history_limit;
+        let visibility_changed = self.settings.visibility != old_settings.visibility;
         let placement_changed = self.settings.placement != old_settings.placement;
 
         if history_limit_changed {
@@ -279,12 +281,17 @@ impl App {
                 .state
                 .set_history_limit(self.settings.history_limit);
         }
+        if visibility_changed {
+            self.keystroke_window
+                .state
+                .set_visibility(self.settings.visibility);
+        }
 
-        if history_limit_changed || placement_changed {
+        if history_limit_changed || visibility_changed || placement_changed {
             return window::monitor_size(self.keystroke_window.id).map(move |monitor_size| {
                 Message::KeystrokeWindowMonitorSize {
                     monitor_size,
-                    resize: history_limit_changed,
+                    resize: history_limit_changed || visibility_changed,
                 }
             });
         }
