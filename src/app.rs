@@ -144,9 +144,9 @@ impl App {
                             }
                         }),
                         #[cfg(target_os = "linux")]
-                        crate::window::configure_keystroke_x11_window(id),
+                        crate::window::keystroke::configure_x11_window(id),
                         #[cfg(target_os = "macos")]
-                        crate::window::configure_keystroke_macos_window(id),
+                        crate::window::keystroke::configure_macos_window(id),
                     ])
                 } else {
                     let settings_window = self
